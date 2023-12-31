@@ -47,6 +47,7 @@ export interface BundleExtensionEntry {
 
 export type BundleExtension = ExtensionBase & {
 	type: BundleExtensionType;
+	partial?: boolean;
 	entrypoint: SplitEntrypoint;
 	entries: BundleExtensionEntry[];
 };

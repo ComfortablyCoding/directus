@@ -38,7 +38,14 @@ const isPartialEnabled = computed(() => {
 	return props.extension.schema.partial !== false;
 });
 
-const hasDisabledChildren = computed(() => props.children.some((e) => !e.meta.enabled));
+const isPartiallyEnabled = computed(() => {
+	if (props.extension.schema?.type !== 'bundle') {
+		return false;
+	}
+
+	const enabledExtensionCount = props.children.filter((e) => e.meta.enabled);
+	return enabledExtensionCount.length !== 0 && enabledExtensionCount.length !== props.children.length;
+});
 
 const isOrHasAppExtension = computed(() => {
 	if (type.value === 'bundle') {
@@ -49,7 +56,7 @@ const isOrHasAppExtension = computed(() => {
 });
 
 const status = computed(() => {
-	if (type.value === 'bundle' && hasDisabledChildren.value) {
+	if (type.value === 'bundle' && isPartiallyEnabled.value) {
 		return { text: t('partially_enabled'), class: 'partially-enabled' };
 	}
 

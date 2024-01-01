@@ -45,7 +45,7 @@ export async function resolvePackageExtensions(root: string, extensionNames?: st
 			extensions.push({
 				path: extensionPath,
 				name: parsedManifest.name,
-				partial: extensionOptions.partial ?? true,
+				partial: extensionOptions.partial,
 				version: parsedManifest.version,
 				type: extensionOptions.type,
 				entrypoint: {

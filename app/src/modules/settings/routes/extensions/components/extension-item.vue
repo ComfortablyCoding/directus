@@ -72,28 +72,17 @@ function isAppExtension(type?: ExtensionType) {
 	return (APP_OR_HYBRID_EXTENSION_TYPES as readonly string[]).includes(type);
 }
 
-async function setExtensionStatus(extension: ApiOutput, status: boolean) {
-	const endpoint = extension.bundle
-		? `/extensions/${extension.bundle}/${extension.name}`
-		: `/extensions/${extension.name}`;
-
-	return api.patch(endpoint, { meta: { enabled: status } });
-}
-
 async function toggleEnabled() {
 	if (changingEnabledState.value === true) return;
 
 	changingEnabledState.value = true;
 
 	try {
-		const status = !props.extension.meta.enabled;
-		await setExtensionStatus(props.extension, status);
+		const endpoint = props.extension.bundle
+			? `/extensions/${props.extension.bundle}/${props.extension.name}`
+			: `/extensions/${props.extension.name}`;
 
-		if (type.value === 'bundle') {
-			for (const entry of props.children) {
-				await setExtensionStatus(entry, status);
-			}
-		}
+		await api.patch(endpoint, { meta: { enabled: !props.extension.meta.enabled } });
 	} finally {
 		changingEnabledState.value = false;
 		emit('refresh', type.value);

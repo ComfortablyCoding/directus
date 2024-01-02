@@ -85,41 +85,43 @@ export class ExtensionsService {
 			throw new InvalidPayloadError({ reason: error.message });
 		}
 
-		const extension = await this.readOne(bundle, name);
-
 		if ('meta' in data && 'enabled' in data.meta) {
 			if (bundle !== null) {
 				const parent = await this.readOne(null, bundle);
 
-				if (parent.schema?.type === 'bundle' && parent.schema.partial === false) {
-					// if partial is false do not allow to toggle child
-					throw new InvalidPayloadError({ reason: 'Unable to disable an entry for a bundle marked as non partial' });
+				if (parent.schema?.type !== 'bundle') {
+					await this.knex('directus_extensions').update({ enabled: data.meta.enabled }).where({ name: key });
+				} else {
+					if (parent.schema.partial === false) {
+						// if a bundle is non-partial do not allow toggling a child
+						throw new InvalidPayloadError({ reason: 'Unable to disable an entry for a bundle marked as non partial' });
+					}
+
+					await this.knex('directus_extensions').update({ enabled: data.meta.enabled }).where({ name: key });
+
+					const child = await this.knex('directus_extensions')
+						.where('name', 'LIKE', `${bundle}/%`)
+						.where({ enabled: true })
+						.first();
+
+					if (!child && parent.meta.enabled) {
+						// if all children are disabled then ensure parent bundle is disabled
+						await this.knex('directus_extensions').update({ enabled: false }).where({ name: parent.name });
+					} else if (child && !parent.meta.enabled) {
+						// if at least one child is enabled then ensure parent bundle is enabled
+						await this.knex('directus_extensions').update({ enabled: true }).where({ name: parent.name });
+					}
 				}
-			}
+			} else {
+				await this.knex('directus_extensions').update({ enabled: data.meta.enabled }).where({ name: key });
 
-			await this.knex('directus_extensions').update({ enabled: data.meta.enabled }).where({ name: key });
+				const extension = await this.readOne(bundle, name);
 
-			if (extension.schema?.type === 'bundle') {
-				// if a bundle is toggled, then toggle all children
-				await this.knex('directus_extensions')
-					.update({ enabled: data.meta.enabled })
-					.where('name', 'LIKE', `${name}/%`);
-			}
-
-			if (bundle !== null) {
-				const child = await this.knex('directus_extensions')
-					.where('name', 'LIKE', `${bundle}/%`)
-					.where({ enabled: true })
-					.first();
-
-				const parent = await this.readOne(null, bundle);
-
-				if (!child && data.meta.enabled === false && parent.schema?.type === 'bundle') {
-					// if all children are disabled then disable parent bundle
-					await this.knex('directus_extensions').update({ enabled: false }).where({ name: parent.name });
-				} else if (child && data.meta.enabled && parent.schema?.type === 'bundle') {
-					// if at least one child is enable then ensure parent is enabled
-					await this.knex('directus_extensions').update({ enabled: true }).where({ name: parent.name });
+				if (extension.schema?.type === 'bundle') {
+					// if a bundle is toggled, then toggle all of its children
+					await this.knex('directus_extensions')
+						.update({ enabled: data.meta.enabled })
+						.where('name', 'LIKE', `${name}/%`);
 				}
 			}
 

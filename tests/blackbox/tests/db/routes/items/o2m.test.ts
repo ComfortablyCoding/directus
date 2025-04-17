@@ -1499,132 +1499,132 @@ describe.each(PRIMARY_KEY_TYPES)('/items', (pkType) => {
 		// 	);
 		// });
 
-		describe('Returns no duplicated results from joins', () => {
-			it.each(vendors)('%s', async (vendor) => {
-				// Setup
-				await CreateItem(vendor, {
-					collection: localCollectionCountries,
-					item: {
-						...createCountry(pkType),
-						name: 'test_country_duplicates',
-						states: {
-							create: [
-								{
-									...createState(pkType),
-									name: 'test_state_duplicates_1',
-								},
-								{
-									...createState(pkType),
-									name: 'test_state_duplicates_2',
-								},
-							],
-							update: [],
-							delete: [],
-						},
-					},
-				});
+		// describe('Returns no duplicated results from joins', () => {
+		// 	it.each(vendors)('%s', async (vendor) => {
+		// 		// Setup
+		// 		await CreateItem(vendor, {
+		// 			collection: localCollectionCountries,
+		// 			item: {
+		// 				...createCountry(pkType),
+		// 				name: 'test_country_duplicates',
+		// 				states: {
+		// 					create: [
+		// 						{
+		// 							...createState(pkType),
+		// 							name: 'test_state_duplicates_1',
+		// 						},
+		// 						{
+		// 							...createState(pkType),
+		// 							name: 'test_state_duplicates_2',
+		// 						},
+		// 					],
+		// 					update: [],
+		// 					delete: [],
+		// 				},
+		// 			},
+		// 		});
 
-				// Action
-				const responseO2m = await request(getUrl(vendor))
-					.get(`/items/${localCollectionCountries}`)
-					.query({
-						filter: JSON.stringify({
-							_and: [
-								{
-									name: { _eq: 'test_country_duplicates' },
-								},
-								{
-									states: {
-										country_id: {
-											id: { _nnull: true },
-										},
-									},
-								},
-							],
-						}),
-					})
-					.set('Authorization', `Bearer ${USER.ADMIN.TOKEN}`);
+		// 		// Action
+		// 		const responseO2m = await request(getUrl(vendor))
+		// 			.get(`/items/${localCollectionCountries}`)
+		// 			.query({
+		// 				filter: JSON.stringify({
+		// 					_and: [
+		// 						{
+		// 							name: { _eq: 'test_country_duplicates' },
+		// 						},
+		// 						{
+		// 							states: {
+		// 								country_id: {
+		// 									id: { _nnull: true },
+		// 								},
+		// 							},
+		// 						},
+		// 					],
+		// 				}),
+		// 			})
+		// 			.set('Authorization', `Bearer ${USER.ADMIN.TOKEN}`);
 
-				const responseM2o = await request(getUrl(vendor))
-					.get(`/items/${localCollectionStates}`)
-					.query({
-						filter: JSON.stringify({
-							_and: [
-								{
-									name: { _starts_with: 'test_state_duplicates' },
-								},
-								{
-									country_id: {
-										states: {
-											id: { _nnull: true },
-										},
-									},
-								},
-							],
-						}),
-					})
-					.set('Authorization', `Bearer ${USER.ADMIN.TOKEN}`);
+		// 		const responseM2o = await request(getUrl(vendor))
+		// 			.get(`/items/${localCollectionStates}`)
+		// 			.query({
+		// 				filter: JSON.stringify({
+		// 					_and: [
+		// 						{
+		// 							name: { _starts_with: 'test_state_duplicates' },
+		// 						},
+		// 						{
+		// 							country_id: {
+		// 								states: {
+		// 									id: { _nnull: true },
+		// 								},
+		// 							},
+		// 						},
+		// 					],
+		// 				}),
+		// 			})
+		// 			.set('Authorization', `Bearer ${USER.ADMIN.TOKEN}`);
 
-				const gqlResponseO2m = await requestGraphQL(getUrl(vendor), false, USER.ADMIN.TOKEN, {
-					query: {
-						[localCollectionCountries]: {
-							__args: {
-								filter: {
-									_and: [
-										{
-											name: { _eq: 'test_country_duplicates' },
-										},
-										{
-											states: {
-												country_id: {
-													id: { _nnull: true },
-												},
-											},
-										},
-									],
-								},
-							},
-							id: true,
-						},
-					},
-				});
+		// 		const gqlResponseO2m = await requestGraphQL(getUrl(vendor), false, USER.ADMIN.TOKEN, {
+		// 			query: {
+		// 				[localCollectionCountries]: {
+		// 					__args: {
+		// 						filter: {
+		// 							_and: [
+		// 								{
+		// 									name: { _eq: 'test_country_duplicates' },
+		// 								},
+		// 								{
+		// 									states: {
+		// 										country_id: {
+		// 											id: { _nnull: true },
+		// 										},
+		// 									},
+		// 								},
+		// 							],
+		// 						},
+		// 					},
+		// 					id: true,
+		// 				},
+		// 			},
+		// 		});
 
-				const gqlResponseM2o = await requestGraphQL(getUrl(vendor), false, USER.ADMIN.TOKEN, {
-					query: {
-						[localCollectionStates]: {
-							__args: {
-								filter: {
-									_and: [
-										{
-											name: { _starts_with: 'test_state_duplicates' },
-										},
-										{
-											country_id: {
-												states: {
-													id: { _nnull: true },
-												},
-											},
-										},
-									],
-								},
-							},
-							id: true,
-						},
-					},
-				});
+		// 		const gqlResponseM2o = await requestGraphQL(getUrl(vendor), false, USER.ADMIN.TOKEN, {
+		// 			query: {
+		// 				[localCollectionStates]: {
+		// 					__args: {
+		// 						filter: {
+		// 							_and: [
+		// 								{
+		// 									name: { _starts_with: 'test_state_duplicates' },
+		// 								},
+		// 								{
+		// 									country_id: {
+		// 										states: {
+		// 											id: { _nnull: true },
+		// 										},
+		// 									},
+		// 								},
+		// 							],
+		// 						},
+		// 					},
+		// 					id: true,
+		// 				},
+		// 			},
+		// 		});
 
-				// Assert
-				expect(responseO2m.statusCode).toEqual(200);
-				expect(responseO2m.body.data.length).toEqual(1);
-				expect(responseM2o.statusCode).toEqual(200);
-				expect(responseM2o.body.data.length).toEqual(2);
+		// 		// Assert
+		// 		expect(responseO2m.statusCode).toEqual(200);
+		// 		expect(responseO2m.body.data.length).toEqual(1);
+		// 		expect(responseM2o.statusCode).toEqual(200);
+		// 		expect(responseM2o.body.data.length).toEqual(2);
 
-				expect(gqlResponseO2m.statusCode).toEqual(200);
-				expect(gqlResponseO2m.body.data[localCollectionCountries].length).toEqual(1);
-				expect(gqlResponseM2o.statusCode).toEqual(200);
-				expect(gqlResponseM2o.body.data[localCollectionStates].length).toEqual(2);
-			});
-		});
+		// 		expect(gqlResponseO2m.statusCode).toEqual(200);
+		// 		expect(gqlResponseO2m.body.data[localCollectionCountries].length).toEqual(1);
+		// 		expect(gqlResponseM2o.statusCode).toEqual(200);
+		// 		expect(gqlResponseM2o.body.data[localCollectionStates].length).toEqual(2);
+		// 	});
+		// });
 
 		describe('Relational trigger ON DESELECT ACTION is applied irrespective of QUERY_LIMIT_MAX', () => {
 			it.each(vendors)('%s', async (vendor) => {

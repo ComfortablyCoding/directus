@@ -1,5 +1,5 @@
 import config, { getUrl } from '@common/config';
-import { CreateItem, ReadItem } from '@common/functions';
+import { CreateItem, ReadItem, UpdateItem } from '@common/functions';
 import vendors from '@common/get-dbs-to-test';
 import { createWebSocketConn, createWebSocketGql, requestGraphQL } from '@common/transport';
 import type { PrimaryKeyType } from '@common/types';
@@ -1634,10 +1634,28 @@ describe.each(PRIMARY_KEY_TYPES)('/items', (pkType) => {
 					item: {
 						...createCountry(pkType),
 						name: 'test_on_deselected_action',
-						states: Array.from({ length: 150 }, (_, i) => ({
+						states: Array.from({ length: 50 }, (_, i) => ({
 							...createState(pkType),
 							name: 'test_on_deselected_action_' + i,
 						})),
+					},
+				});
+
+				// workaround BATCH_MUTATION_MAX:100
+				await UpdateItem(vendor, {
+					collection: localCollectionCountries,
+					item: {
+						...createCountry(pkType),
+						id: createdItem.id,
+						name: 'test_on_deselected_action',
+						states: {
+							create: Array.from({ length: 75 }, (_, i) => ({
+								...createState(pkType),
+								name: 'test_on_deselected_action_' + i,
+							})),
+							update: [],
+							delete: [],
+						},
 					},
 				});
 

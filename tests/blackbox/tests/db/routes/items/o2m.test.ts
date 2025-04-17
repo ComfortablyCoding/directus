@@ -1657,7 +1657,7 @@ describe.each(PRIMARY_KEY_TYPES)('/items', (pkType) => {
 				});
 
 				// Action
-				await request(getUrl(vendor))
+				const res = await request(getUrl(vendor))
 					.patch(`/items/${localCollectionCountries}/${createdItem.id}`)
 					.send({
 						states: [
@@ -1668,6 +1668,8 @@ describe.each(PRIMARY_KEY_TYPES)('/items', (pkType) => {
 						],
 					})
 					.set('Authorization', `Bearer ${USER.ADMIN.TOKEN}`);
+
+				console.log({ text: res.text });
 
 				const response = await request(getUrl(vendor))
 					.get(`/items/${localCollectionStates}`)

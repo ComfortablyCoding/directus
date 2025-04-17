@@ -1626,33 +1626,30 @@ describe.each(PRIMARY_KEY_TYPES)('/items', (pkType) => {
 		// 	});
 		// });
 
-		describe('Relational trigger ON DESELECT ACTION is applied irrespective of QUERY_LIMIT_MAX', () => {
+		describe('Relational trigger ON DESELECT ACTION are applied irrespective of QUERY_LIMIT_MAX', () => {
 			it.each(vendors)('%s', async (vendor) => {
+				const states = Array.from({ length: 150 }, (_, i) => ({
+					...createState(pkType),
+					name: 'test_on_deselected_action_' + i,
+				}));
+
 				// Setup
 				const createdItem = await CreateItem(vendor, {
 					collection: localCollectionCountries,
 					item: {
 						...createCountry(pkType),
 						name: 'test_on_deselected_action',
-						states: Array.from({ length: 50 }, (_, i) => ({
-							...createState(pkType),
-							name: 'test_on_deselected_action_' + i,
-						})),
+						states: states.slice(0, 75),
 					},
 				});
 
 				// workaround BATCH_MUTATION_MAX:100
 				await UpdateItem(vendor, {
 					collection: localCollectionCountries,
+					id: createdItem.id,
 					item: {
-						...createCountry(pkType),
-						id: createdItem.id,
-						name: 'test_on_deselected_action',
 						states: {
-							create: Array.from({ length: 75 }, (_, i) => ({
-								...createState(pkType),
-								name: 'test_on_deselected_action_' + i,
-							})),
+							create: states.slice(76, 150),
 							update: [],
 							delete: [],
 						},

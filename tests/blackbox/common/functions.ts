@@ -668,6 +668,8 @@ export async function CreateItem(vendor: Vendor, options: OptionsCreateItem) {
 		.set('Authorization', `Bearer ${options.token ?? USER.TESTS_FLOW.TOKEN}`)
 		.send(options.item);
 
+	console.log({ text: response.text });
+
 	if (!response.ok) {
 		throw new Error('Could not create item', response.body);
 	}

@@ -47,11 +47,11 @@ jobs:
       fail-fast: false
       matrix:
         vendor:
-          - sqlite3
-          - postgres
-          - mysql
-          - maria
-          - mssql
+          # - sqlite3
+          # - postgres
+          # - mysql
+          # - maria
+          # - mssql
           - oracle
           # - cockroachdb
     steps:

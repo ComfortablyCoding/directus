@@ -1652,7 +1652,7 @@ describe.each(PRIMARY_KEY_TYPES)('/items', (pkType) => {
 					},
 				});
 
-				const setupUpdateStates = Array.from({ length: relationalOverageBuffer }, (_, i) => ({
+				const setupUpdateStates = Array.from({ length: relationalOverageBuffer + 1 }, (_, i) => ({
 					...createState(pkType),
 					name: 'test_on_deselected_action_' + i,
 				}));

@@ -1,5 +1,5 @@
 import config, { getUrl } from '@common/config';
-import { CreateItem, ReadItem } from '@common/functions';
+import { CreateItem, ReadItem, UpdateItem } from '@common/functions';
 import vendors from '@common/get-dbs-to-test';
 import { createWebSocketConn, createWebSocketGql, requestGraphQL } from '@common/transport';
 import type { PrimaryKeyType } from '@common/types';
@@ -1634,6 +1634,7 @@ describe.each(PRIMARY_KEY_TYPES)('/items', (pkType) => {
 					return;
 				}
 
+				const queryLimitOverage = 1;
 				const queryLimit = Number(config.envs[vendor]['QUERY_LIMIT_DEFAULT']);
 				const maxBatchMutation = Number(config.envs[vendor]['MAX_BATCH_MUTATION']);
 
@@ -1652,8 +1653,25 @@ describe.each(PRIMARY_KEY_TYPES)('/items', (pkType) => {
 					},
 				});
 
+				const setupUpdateStates = Array.from({ length: queryLimitOverage }, (_, i) => ({
+					...createState(pkType),
+					name: 'test_on_deselected_action_' + i,
+				}));
+
+				await UpdateItem(vendor, {
+					id: createdItem.id,
+					collection: localCollectionCountries,
+					item: {
+						states: {
+							create: setupUpdateStates,
+							update: [],
+							delete: [],
+						},
+					},
+				});
+
 				// Action
-				const actionStates = Array.from({ length: maxBatchMutation - queryLimit - 1 }, (_, i) => ({
+				const actionStates = Array.from({ length: maxBatchMutation - queryLimit - queryLimitOverage - 1 }, (_, i) => ({
 					...createState(pkType),
 					name: 'test_on_deselected_action_' + i,
 				}));

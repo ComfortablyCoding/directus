@@ -1634,9 +1634,8 @@ describe.each(PRIMARY_KEY_TYPES)('/items', (pkType) => {
 					return;
 				}
 
-				const queryLimitOverage = 1;
 				const queryLimit = Number(config.envs[vendor]['QUERY_LIMIT_DEFAULT']);
-				const maxBatchMutation = Number(config.envs[vendor]['MAX_BATCH_MUTATION']);
+				const relationalOverageBuffer = 1;
 
 				const setupStates = Array.from({ length: queryLimit }, (_, i) => ({
 					...createState(pkType),
@@ -1653,7 +1652,7 @@ describe.each(PRIMARY_KEY_TYPES)('/items', (pkType) => {
 					},
 				});
 
-				const setupUpdateStates = Array.from({ length: queryLimitOverage }, (_, i) => ({
+				const setupUpdateStates = Array.from({ length: relationalOverageBuffer }, (_, i) => ({
 					...createState(pkType),
 					name: 'test_on_deselected_action_' + i,
 				}));
@@ -1671,7 +1670,7 @@ describe.each(PRIMARY_KEY_TYPES)('/items', (pkType) => {
 				});
 
 				// Action
-				const actionStates = Array.from({ length: maxBatchMutation - queryLimit - queryLimitOverage - 1 }, (_, i) => ({
+				const actionStates = Array.from({ length: relationalOverageBuffer }, (_, i) => ({
 					...createState(pkType),
 					name: 'test_on_deselected_action_' + i,
 				}));

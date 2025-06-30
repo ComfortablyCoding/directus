@@ -16,12 +16,10 @@ const vendorSchemaValues: TestsSchemaVendorValues = {};
 
 beforeAll(async () => {
 	await seedDBValues(cachedSchema, vendorSchemaValues);
-	console.log('h1');
 }, 300_000);
 
 describe('Seed Database Values', () => {
 	it.each(vendors)('%s', async (vendor) => {
-		console.log({ vendorSchemaValues });
 		// Assert
 		expect(vendorSchemaValues[vendor]).toBeDefined();
 	});

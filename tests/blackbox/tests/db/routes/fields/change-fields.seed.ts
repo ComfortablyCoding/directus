@@ -171,6 +171,8 @@ export const seedDBValues = async (cachedSchema: CachedTestsSchema, vendorSchema
 					item: itemCountries,
 				});
 
+				console.log({ countries });
+
 				const countriesIDs = countries.map((country: Country) => country.id);
 
 				console.log('h1');

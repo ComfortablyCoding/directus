@@ -23,7 +23,7 @@ describe('/files', () => {
 						.send(payload)
 						.set('Authorization', `Bearer ${USER.ADMIN.TOKEN}`);
 
-					console.log({ response: response.body });
+					console.dir({ response: response.body }, { depth: null });
 
 					// Assert
 					expect(response.statusCode).toBe(200);
@@ -49,7 +49,7 @@ describe('/files', () => {
 						.send(payload)
 						.set('Authorization', `Bearer ${USER.ADMIN.TOKEN}`);
 
-					console.log({ response: response.body });
+					console.dir({ response: response.body }, { depth: null });
 
 					// Assert
 					expect(response.statusCode).toBe(400);

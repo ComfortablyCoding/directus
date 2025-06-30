@@ -9,5 +9,5 @@ on:
 jobs:
   blackbox-tests:
     name: Blackbox Tests
-    if: contains(github.event.pull_request.labels.*.name, 'Run Blackbox')
+    if: github.event.pull_request.labels.*.name == 'Run Blackbox'
     uses: ./.github/workflows/blackbox.yml

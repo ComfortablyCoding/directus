@@ -23,6 +23,8 @@ describe('/files', () => {
 						.send(payload)
 						.set('Authorization', `Bearer ${USER.ADMIN.TOKEN}`);
 
+					console.log({ response: response.body });
+
 					// Assert
 					expect(response.statusCode).toBe(200);
 
@@ -46,6 +48,8 @@ describe('/files', () => {
 						.post(`/files`)
 						.send(payload)
 						.set('Authorization', `Bearer ${USER.ADMIN.TOKEN}`);
+
+					console.log({ response: response.body });
 
 					// Assert
 					expect(response.statusCode).toBe(400);

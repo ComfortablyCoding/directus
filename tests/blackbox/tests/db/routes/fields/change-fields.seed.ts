@@ -139,8 +139,6 @@ export const seedDBStructure = () => {
 };
 
 export const seedDBValues = async (cachedSchema: CachedTestsSchema, vendorSchemaValues: TestsSchemaVendorValues) => {
-	console.log({ vendors });
-
 	await Promise.all(
 		vendors.map(async (vendor) => {
 			for (const pkType of PRIMARY_KEY_TYPES) {
@@ -164,18 +162,12 @@ export const seedDBValues = async (cachedSchema: CachedTestsSchema, vendorSchema
 					itemCountries.push(country);
 				}
 
-				console.log('h');
-
 				const countries = await CreateItem(vendor, {
 					collection: localCollectionCountries,
 					item: itemCountries,
 				});
 
-				console.log({ countries });
-
 				const countriesIDs = countries.map((country: Country) => country.id);
-
-				console.log('h1');
 
 				set(vendorSchemaValues, `${vendor}.${localCollectionCountries}.id`, countriesIDs);
 
@@ -203,8 +195,6 @@ export const seedDBValues = async (cachedSchema: CachedTestsSchema, vendorSchema
 				const statesIDs = states.map((state: State) => state.id);
 
 				set(vendorSchemaValues, `${vendor}.${localCollectionStates}.id`, statesIDs);
-
-				console.log({ vendorSchemaValues });
 			}
 		}),
 	);

@@ -15,12 +15,13 @@ const cachedSchema = PRIMARY_KEY_TYPES.reduce((acc, pkType) => {
 const vendorSchemaValues: TestsSchemaVendorValues = {};
 
 beforeAll(async () => {
-	console.log({ cachedSchema });
 	await seedDBValues(cachedSchema, vendorSchemaValues);
+	console.log('h1');
 }, 300_000);
 
 describe('Seed Database Values', () => {
 	it.each(vendors)('%s', async (vendor) => {
+		console.log({ vendorSchemaValues });
 		// Assert
 		expect(vendorSchemaValues[vendor]).toBeDefined();
 	});

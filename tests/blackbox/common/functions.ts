@@ -23,6 +23,7 @@ export function ClearCaches() {
 		it.each(vendors)(
 			'%s',
 			async (vendor) => {
+				console.log('cache1');
 				// Setup
 				EnableTestCaching();
 
@@ -37,6 +38,7 @@ export function ClearCaches() {
 
 				expect(response.statusCode).toBe(200);
 				expect(response2.statusCode).toBe(200);
+				console.log('cache2');
 			},
 			30000,
 		);

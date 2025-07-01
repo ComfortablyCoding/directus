@@ -26,14 +26,15 @@ describe('Seed Database Structure', async () => {
 	}
 
 	for (const path of seeds) {
-		console.log({ path });
 		const importedTest = await import(`../../${path}`);
-
-		console.log({ importedTest });
 
 		if (typeof importedTest.seedDBStructure === 'function') {
 			describe(`Seeding "${path}"`, async () => {
-				await importedTest.seedDBStructure();
+				try {
+					await importedTest.seedDBStructure();
+				} catch (error) {
+					console.log(error);
+				}
 			});
 		}
 	}

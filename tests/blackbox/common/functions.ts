@@ -20,6 +20,8 @@ export function DisableTestCachingSetup() {
 
 export function ClearCaches() {
 	describe('Clear Caches', () => {
+		console.log({ vendors });
+
 		it.each(vendors)(
 			'%s',
 			async (vendor) => {

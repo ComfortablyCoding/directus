@@ -137,6 +137,8 @@ export async function setup() {
 	])
 		.run()
 		.catch((reason) => {
+			console.log({ reason });
+
 			for (const server of Object.values(global.directus)) {
 				server?.kill();
 			}

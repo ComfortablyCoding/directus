@@ -11,8 +11,6 @@ describe('Seed Database Structure', async () => {
 		cwd: paths.cwd,
 	});
 
-	console.log({ seeds });
-
 	if (seeds.length === 0) {
 		test('No seed files found', () => {
 			expect(true).toBe(true);
@@ -28,7 +26,10 @@ describe('Seed Database Structure', async () => {
 	}
 
 	for (const path of seeds) {
+		console.log({ path });
 		const importedTest = await import(`../../${path}`);
+
+		console.log({ importedTest });
 
 		if (typeof importedTest.seedDBStructure === 'function') {
 			describe(`Seeding "${path}"`, async () => {

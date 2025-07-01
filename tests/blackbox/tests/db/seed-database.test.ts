@@ -30,14 +30,12 @@ describe('Seed Database Structure', async () => {
 
 		if (typeof importedTest.seedDBStructure === 'function') {
 			describe(`Seeding "${path}"`, async () => {
-				try {
-					await importedTest.seedDBStructure();
-				} catch (error) {
-					console.log(error);
-				}
+				await importedTest.seedDBStructure();
 			});
 		}
 	}
+
+	console.log('done! db seed');
 
 	ClearCaches();
 });

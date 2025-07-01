@@ -1,7 +1,7 @@
 import { globby } from 'globby';
 import { describe, expect, test } from 'vitest';
 import { paths } from '../../common/config';
-import { ClearCaches, DisableTestCachingSetup } from '../../common/functions';
+import { DisableTestCachingSetup } from '../../common/functions';
 import { sequentialTestsList } from '../../setup/sequential-tests';
 
 describe('Seed Database Structure', async () => {
@@ -37,5 +37,5 @@ describe('Seed Database Structure', async () => {
 
 	console.log('done! db seed');
 
-	ClearCaches();
+	// ClearCaches();
 });

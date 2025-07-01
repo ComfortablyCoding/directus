@@ -2,8 +2,8 @@ import axios from 'axios';
 import fs from 'node:fs/promises';
 import type { Environment } from 'vitest';
 import { USER } from '../common/variables';
-import { getReversedTestIndex } from './sequential-tests';
 import { sleep } from '../utils/sleep';
+import { getReversedTestIndex } from './sequential-tests';
 
 export default <Environment>{
 	name: 'custom',
@@ -14,11 +14,17 @@ export default <Environment>{
 		const testFilePath = global.__vitest_worker__.ctx.files[0].split('blackbox')[1];
 		const serverUrl = process.env['serverUrl'];
 
+		console.log({ testFilePath });
+
 		if (!serverUrl || isNaN(totalTestsCount)) {
 			throw 'Missing flow env variables';
 		}
 
+		console.log('h1');
+
 		const testIndex = getReversedTestIndex(testFilePath, global.__vitest_worker__.ctx.config.name);
+
+		console.log('h2');
 
 		while (testIndex !== 0) {
 			try {

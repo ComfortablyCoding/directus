@@ -37,6 +37,8 @@ export const sequentialTestsList: Record<'db' | 'common', SequentialTestsList> =
 };
 
 export function getReversedTestIndex(testFilePath: string, project: 'db' | 'common') {
+	console.log({ sequentialTestsList });
+
 	const list = sequentialTestsList[project];
 
 	if (list.only.length > 0) {

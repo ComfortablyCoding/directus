@@ -1,8 +1,8 @@
 import { globby } from 'globby';
 import { describe, expect, test } from 'vitest';
-import { sequentialTestsList } from '../../setup/sequential-tests';
 import { paths } from '../../common/config';
 import { ClearCaches, DisableTestCachingSetup } from '../../common/functions';
+import { sequentialTestsList } from '../../setup/sequential-tests';
 
 describe('Seed Database Structure', async () => {
 	DisableTestCachingSetup();
@@ -10,6 +10,8 @@ describe('Seed Database Structure', async () => {
 	let seeds = await globby('**.seed.ts', {
 		cwd: paths.cwd,
 	});
+
+	console.log({ seeds });
 
 	if (seeds.length === 0) {
 		test('No seed files found', () => {

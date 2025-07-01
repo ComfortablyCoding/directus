@@ -30,7 +30,9 @@ import vendors from './get-dbs-to-test';
 import { ROLE, USER } from './variables';
 
 describe('Common', () => {
+	console.log('h1');
 	DisableTestCachingSetup();
+	console.log('h2');
 
 	describe('createRole()', () => {
 		describe('Creates default admin role and policy', () => {
@@ -223,6 +225,8 @@ describe('Common', () => {
 		});
 	});
 
+	console.log('h3');
+
 	describe('createUser()', () => {
 		describe('Creates default admin user', () => {
 			it.each(vendors)('%s', async (vendor) => {
@@ -391,6 +395,8 @@ describe('Common', () => {
 		});
 	});
 
+	console.log('h4');
+
 	describe('createCollection()', () => {
 		describe('Creates a new collection', () => {
 			it.each(vendors)(
@@ -469,6 +475,7 @@ describe('Common', () => {
 			);
 		});
 	});
+	console.log('h5');
 
 	describe('createField()', () => {
 		describe('Creates a new field', () => {
@@ -507,6 +514,8 @@ describe('Common', () => {
 			);
 		});
 	});
+
+	console.log('h5');
 
 	describe('createFieldM2O()', () => {
 		describe('Creates a new M2O field', () => {
@@ -555,6 +564,7 @@ describe('Common', () => {
 			);
 		});
 	});
+	console.log('h6');
 
 	describe('createFieldO2M()', () => {
 		describe('Creates a new O2M field', () => {
@@ -603,6 +613,7 @@ describe('Common', () => {
 			);
 		});
 	});
+	console.log('h7');
 
 	describe('createItem()', () => {
 		describe('Creates a new item', () => {
@@ -637,6 +648,7 @@ describe('Common', () => {
 				30000,
 			);
 		});
+		console.log('h8');
 
 		describe('Creates a new M2O item', () => {
 			it.each(vendors)(
@@ -672,6 +684,7 @@ describe('Common', () => {
 				30000,
 			);
 		});
+		console.log('h9');
 
 		describe('Creates a new O2M item', () => {
 			it.each(vendors)(
@@ -863,6 +876,8 @@ describe('Common', () => {
 			);
 		});
 	});
+
+	console.log('done common!');
 
 	ClearCaches();
 });

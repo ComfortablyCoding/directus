@@ -10,7 +10,6 @@ export const sequentialTestsList: Record<'db' | 'common', SequentialTestsList> =
 	},
 	db: {
 		before: [
-			'/tests/db/seed-database.test.ts',
 			// '/common/common.test.ts',
 			// '/tests/db/routes/schema/schema.test.ts',
 			// '/tests/db/routes/collections/crud.test.ts',
@@ -27,13 +26,9 @@ export const sequentialTestsList: Record<'db' | 'common', SequentialTestsList> =
 			// '/tests/db/routes/flows/webhook.test.ts',
 			// '/tests/db/app/cache.test.ts',
 			// '/tests/db/routes/collections/schema-cache.test.ts',
-			'/tests/db/routes/items/version.test.ts',
 		],
 		// If specified, only run these tests sequentially
-		only: [
-			// '/tests/db/seed-database.test.ts',
-			// '/common/common.test.ts',
-		],
+		only: ['/tests/db/seed-database.test.ts', '/common/common.test.ts', '/tests/db/routes/items/version.test.ts'],
 	},
 };
 

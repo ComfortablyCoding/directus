@@ -246,7 +246,7 @@ export async function CreateCollection(vendor: Vendor, options: Partial<OptionsC
 		}
 	}
 
-	console.log({ options });
+	console.dir({ options }, { depth: null });
 
 	// Action
 	const collectionResponse = await request(getUrl(vendor, options.env))

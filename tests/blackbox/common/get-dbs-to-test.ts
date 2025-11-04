@@ -1,13 +1,13 @@
 export const allVendors = [
 	'postgres',
 	'postgres10',
-	'mysql',
-	'mysql5',
-	'maria',
+	// 'mysql',
+	// 'mysql5',
+	// 'maria',
 	'mssql',
-	'oracle',
-	'cockroachdb',
-	'sqlite3',
+	// 'oracle',
+	// 'cockroachdb',
+	// 'sqlite3',
 ] as const;
 
 export type Vendor = (typeof allVendors)[number];

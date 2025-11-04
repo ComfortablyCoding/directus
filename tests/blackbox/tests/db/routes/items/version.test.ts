@@ -1,10 +1,10 @@
+import { getUrl } from '@common/config';
 import { CreateItem, CreateVersion, SaveVersion } from '@common/functions';
 import vendors from '@common/get-dbs-to-test';
-import { describe, expect, it } from 'vitest';
-import { c } from './version.seed';
-import request from 'supertest';
-import { getUrl } from '@common/config';
 import { USER } from '@common/variables';
+import request from 'supertest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { c } from './version.seed';
 
 const item = {
 	title: 'Article 1',
@@ -48,6 +48,18 @@ const item = {
 } as const;
 
 describe('version response', () => {
+	beforeEach(() => {
+		// tell vitest we use mocked time
+		vi.useFakeTimers();
+		const date = new Date(2000, 1, 1, 13);
+		vi.setSystemTime(date);
+	});
+
+	afterEach(() => {
+		// restoring date after each test run
+		vi.useRealTimers();
+	});
+
 	it.each(vendors)('%s', async (vendor) => {
 		const result = await CreateItem(vendor, {
 			collection: c.articles,

@@ -67,9 +67,13 @@ describe('/files/tus', () => {
 			const response = await request(getUrl(vendor))
 				.post('/files/tus')
 				.set('Authorization', `Bearer ${USER.APP_ACCESS.TOKEN}`)
+				.set('tus-resumable', '1.0.0')
+				.set('upload-length', `Bearer ${USER.APP_ACCESS.TOKEN}`)
 				.field('storage', 'local')
 				.field('title', file.name)
 				.attach('file', Buffer.from(file.content));
+
+			console.log(response);
 
 			// Assert
 			expect(response.statusCode).toBe(200);

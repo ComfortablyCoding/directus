@@ -3,11 +3,12 @@ import { CreatePermission, DeletePermission } from '@common/functions';
 import vendors from '@common/get-dbs-to-test';
 import { USER } from '@common/variables';
 import request from 'supertest';
+import { Upload } from 'tus-js-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const file = {
 	name: 'tus.text',
-	type: 'image/png',
+	type: 'text/plain',
 	content: 'tus',
 };
 
@@ -64,16 +65,39 @@ describe('/files/tus', () => {
 	describe('POST /files/tus', () => {
 		it.each(vendors)('%s', async (vendor) => {
 			// Action
-			const response = await request(getUrl(vendor))
-				.post('/files/tus')
-				.set('Authorization', `Bearer ${USER.APP_ACCESS.TOKEN}`)
-				.set('tus-resumable', '1.0.0')
-				.set('upload-length', Buffer.from(file.content).byteLength.toString())
-				.field('storage', 'local')
-				.field('title', file.name)
-				.attach('file', Buffer.from(file.content));
+			const response = await new Promise((resolve, reject) => {
+				return new Upload(Buffer.from(file.content), {
+					headers: {
+						Authorization: `Bearer ${USER.APP_ACCESS.TOKEN}`,
+					},
+					endpoint: getUrl(vendor) + `/files/tus`,
+					chunkSize: Buffer.from(file.content).byteLength,
+					metadata: { filename_download: file.name, type: file.type },
+					removeFingerprintOnSuccess: true,
+					onBeforeRequest(req) {
+						const xml = req.getUnderlyingObject();
+						xml.withCredentials = true;
+					},
+					onError(error) {
+						reject(error);
+					},
+					async onSuccess() {
+						const response = await request(getUrl(vendor))
+							.get('/files')
+							.query({
+								title: file.name,
+							})
+							.set('Authorization', `Bearer ${USER.APP_ACCESS.TOKEN}`);
 
-			console.log(response);
+						console.log({ response: response.body.data });
+
+						resolve(response);
+					},
+					onShouldRetry() {
+						return false;
+					},
+				});
+			});
 
 			// Assert
 			expect(response.statusCode).toBe(200);

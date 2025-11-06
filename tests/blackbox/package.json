@@ -34,5 +34,8 @@
 		"vite-tsconfig-paths": "5.1.4",
 		"vitest": "1.6.1",
 		"ws": "8.18.1"
+	},
+	"dependencies": {
+		"tus-js-client": "catalog:"
 	}
 }

@@ -61,12 +61,16 @@ describe('/permissions/me/:collection/:id?', () => {
 
 					await CreatePermission(vendor, {
 						role: USER.APP_ACCESS.KEY,
-						permission: {
-							collection,
-							action: 'update',
-							permissions: { _and: [{ name: { _eq: collectionItemName } }] },
-							presets: {},
-							fields: ['name'],
+						permissions: {
+							update: [
+								{
+									collection,
+									action: 'update',
+									permissions: { _and: [{ name: { _eq: collectionItemName } }] },
+									presets: {},
+									fields: ['name'],
+								},
+							],
 						},
 						policyName: 'Check Update Collection',
 					});
@@ -105,12 +109,16 @@ describe('/permissions/me/:collection/:id?', () => {
 
 					await CreatePermission(vendor, {
 						role: USER.APP_ACCESS.KEY,
-						permission: {
-							collection: singleton,
-							action: 'update',
-							permissions: { _and: [{ name: { _eq: singletonItemName } }] },
-							presets: {},
-							fields: ['name'],
+						permissions: {
+							update: [
+								{
+									collection: singleton,
+									action: 'update',
+									permissions: { _and: [{ name: { _eq: singletonItemName } }] },
+									presets: {},
+									fields: ['name'],
+								},
+							],
 						},
 						policyName: 'Check Update Singleton',
 					});

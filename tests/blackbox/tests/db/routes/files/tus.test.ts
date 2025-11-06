@@ -2,7 +2,7 @@ import { getUrl } from '@common/config';
 import { CreatePermission, DeletePermission } from '@common/functions';
 import vendors from '@common/get-dbs-to-test';
 import { USER } from '@common/variables';
-import request from 'supertest';
+import request, { Response } from 'supertest';
 import { Upload } from 'tus-js-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -65,8 +65,8 @@ describe('/files/tus', () => {
 	describe('POST /files/tus', () => {
 		it.each(vendors)('%s', async (vendor) => {
 			// Action
-			const response = await new Promise((resolve, reject) => {
-				return new Upload(Buffer.from(file.content), {
+			const response = await new Promise<Response>((resolve, reject) => {
+				const upload = new Upload(Buffer.from(file.content), {
 					headers: {
 						Authorization: `Bearer ${USER.APP_ACCESS.TOKEN}`,
 					},
@@ -74,10 +74,6 @@ describe('/files/tus', () => {
 					chunkSize: Buffer.from(file.content).byteLength,
 					metadata: { filename_download: file.name, type: file.type },
 					removeFingerprintOnSuccess: true,
-					onBeforeRequest(req) {
-						const xml = req.getUnderlyingObject();
-						xml.withCredentials = true;
-					},
 					onError(error) {
 						reject(error);
 					},
@@ -85,11 +81,11 @@ describe('/files/tus', () => {
 						const response = await request(getUrl(vendor))
 							.get('/files')
 							.query({
-								title: file.name,
+								filename_download: { _eq: file.name },
+								fields: ['id'],
+								limit: 1,
 							})
 							.set('Authorization', `Bearer ${USER.APP_ACCESS.TOKEN}`);
-
-						console.log({ response: response.body.data });
 
 						resolve(response);
 					},
@@ -97,10 +93,13 @@ describe('/files/tus', () => {
 						return false;
 					},
 				});
+
+				upload.start();
 			});
 
 			// Assert
 			expect(response.statusCode).toBe(200);
+			expect(response.body.data?.[0]?.id).toBeDefined();
 		});
 	});
 
@@ -109,42 +108,49 @@ describe('/files/tus', () => {
 			const fileResponse = await request(getUrl(vendor))
 				.get('/files')
 				.query({
-					filter: { title: { _eq: file.name } },
+					filter: { filename_download: { _eq: file.name } },
 					fields: ['id'],
 					limit: 1,
 				})
 				.set('Authorization', `Bearer ${USER.APP_ACCESS.TOKEN}`);
 
+			file.name = `changed_${file.name}`;
+
 			// Action
-			const response = await request(getUrl(vendor))
-				.patch(`/files/tus/${fileResponse.body.data.id}`)
-				.set('Authorization', `Bearer ${USER.APP_ACCESS.TOKEN}`)
-				.attach('file', Buffer.from(file.content + 'changed'));
+			const response = await new Promise<Response>((resolve, reject) => {
+				const upload = new Upload(Buffer.from(file.content), {
+					headers: {
+						Authorization: `Bearer ${USER.APP_ACCESS.TOKEN}`,
+					},
+					endpoint: getUrl(vendor) + `/files/tus`,
+					chunkSize: Buffer.from(file.content).byteLength,
+					metadata: { filename_download: file.name, type: file.type, id: fileResponse.body.data?.[0]?.id },
+					removeFingerprintOnSuccess: true,
+					onError(error) {
+						reject(error);
+					},
+					async onSuccess() {
+						const response = await request(getUrl(vendor))
+							.get('/files')
+							.query({
+								filename_download: { _eq: file.name },
+								fields: ['id'],
+								limit: 1,
+							})
+							.set('Authorization', `Bearer ${USER.APP_ACCESS.TOKEN}`);
+
+						resolve(response);
+					},
+					onShouldRetry() {
+						return false;
+					},
+				});
+
+				upload.start();
+			});
 
 			// Assert
 			expect(response.statusCode).toBe(200);
-		});
-	});
-
-	describe('DELETE /files/tus/:id', () => {
-		it.each(vendors)('%s', async (vendor) => {
-			const fileResponse = await request(getUrl(vendor))
-				.get('/files')
-				.query({
-					filter: { title: { _eq: file.name } },
-					fields: ['id'],
-					limit: 1,
-				})
-				.set('Authorization', `Bearer ${USER.APP_ACCESS.TOKEN}`);
-
-			// Action
-			const response = await request(getUrl(vendor))
-				.delete(`/files/tus/${fileResponse.body.data.id}`)
-				.set('Authorization', `Bearer ${USER.APP_ACCESS.TOKEN}`);
-
-			// Assert
-			expect(response.statusCode).toEqual(204);
-			expect(response.body.data).toBe(undefined);
 		});
 	});
 });

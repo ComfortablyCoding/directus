@@ -833,7 +833,7 @@ export async function CreatePermission(vendor: Vendor, options: OptionsCreatePer
 		.set('Authorization', `Bearer ${USER.ADMIN.TOKEN}`)
 		.send({
 			permissions: {
-				create: [options.permissions.map((p) => ({ ...p, policy: policyId }))],
+				create: options.permissions.map((p) => ({ ...p, policy: policyId })),
 				update: [],
 				delete: [],
 			},

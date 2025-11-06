@@ -151,6 +151,7 @@ describe('/files/tus', () => {
 
 			// Assert
 			expect(response.statusCode).toBe(200);
+			expect(response.body.data?.[0]?.id).toBeDefined();
 		});
 	});
 });

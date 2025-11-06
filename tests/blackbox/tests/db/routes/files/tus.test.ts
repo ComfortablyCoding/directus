@@ -68,7 +68,7 @@ describe('/files/tus', () => {
 				.post('/files/tus')
 				.set('Authorization', `Bearer ${USER.APP_ACCESS.TOKEN}`)
 				.set('tus-resumable', '1.0.0')
-				.set('upload-length', `Bearer ${USER.APP_ACCESS.TOKEN}`)
+				.set('upload-length', Buffer.from(file.content).byteLength.toString())
 				.field('storage', 'local')
 				.field('title', file.name)
 				.attach('file', Buffer.from(file.content));

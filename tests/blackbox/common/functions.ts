@@ -799,12 +799,7 @@ export async function DeletePolicy(vendor: Vendor, options: OptionsDeletePolicy)
 
 export type OptionsCreatePermission = {
 	role: keyof typeof ROLE;
-	permissions: {
-		create?: Omit<Partial<Permission>, 'id' | 'role' | 'system' | 'policy'>[];
-		read?: Omit<Partial<Permission>, 'id' | 'role' | 'system' | 'policy'>[];
-		update?: Omit<Partial<Permission>, 'id' | 'role' | 'system' | 'policy'>[];
-		delete?: Omit<Partial<Permission>, 'id' | 'role' | 'system' | 'policy'>[];
-	};
+	permissions: Omit<Partial<Permission>, 'id' | 'role' | 'system' | 'policy'>[];
 	policy?: string;
 	policyName?: string;
 };
@@ -838,10 +833,9 @@ export async function CreatePermission(vendor: Vendor, options: OptionsCreatePer
 		.set('Authorization', `Bearer ${USER.ADMIN.TOKEN}`)
 		.send({
 			permissions: {
-				create: (options.permissions.create ?? []).map((c) => ({ ...c, policy: policyId })),
-				read: (options.permissions.read ?? []).map((r) => ({ ...r, policy: policyId })),
-				update: (options.permissions.update ?? []).map((u) => ({ ...u, policy: policyId })),
-				delete: (options.permissions.delete ?? []).map((d) => ({ ...d, policy: policyId })),
+				create: [options.permissions.map((p) => ({ ...p, policy: policyId }))],
+				update: [],
+				delete: [],
 			},
 		});
 

@@ -17,40 +17,32 @@ beforeAll(async () => {
 	for (const vendor of vendors) {
 		const response = await CreatePermission(vendor, {
 			role: USER.APP_ACCESS.KEY,
-			permissions: {
-				create: [
-					{
-						collection: 'directus_files',
-						action: 'create',
-						permissions: {},
-						fields: ['*'],
-					},
-				],
-				read: [
-					{
-						collection: 'directus_files',
-						action: 'read',
-						permissions: {},
-						fields: ['*'],
-					},
-				],
-				update: [
-					{
-						collection: 'directus_files',
-						action: 'update',
-						permissions: {},
-						fields: ['*'],
-					},
-				],
-				delete: [
-					{
-						collection: 'directus_files',
-						action: 'delete',
-						permissions: {},
-						fields: ['*'],
-					},
-				],
-			},
+			permissions: [
+				{
+					collection: 'directus_files',
+					action: 'create',
+					permissions: {},
+					fields: ['*'],
+				},
+				{
+					collection: 'directus_files',
+					action: 'read',
+					permissions: {},
+					fields: ['*'],
+				},
+				{
+					collection: 'directus_files',
+					action: 'update',
+					permissions: {},
+					fields: ['*'],
+				},
+				{
+					collection: 'directus_files',
+					action: 'delete',
+					permissions: {},
+					fields: ['*'],
+				},
+			],
 			policyName: 'TUS',
 		});
 

@@ -13,6 +13,8 @@ import getDatabase from '../database/index.js';
 import { useLock } from '../lock/index.js';
 import { useLogger } from '../logger/index.js';
 import { RelationsService } from '../services/relations.js';
+import { toVersionedCollectionName } from '../services/versions/to-versioned-collection-name.js';
+import { toVersionedRelationName } from '../services/versions/to-versioned-relation-name.js';
 import getDefaultValue from './get-default-value.js';
 import { getSystemFieldRowsWithAuthProviders } from './get-field-system-rows.js';
 import getLocalType from './get-local-type.js';
@@ -127,10 +129,12 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 
 	const collections = [
 		...(await database
-			.select('collection', 'singleton', 'note', 'sort_field', 'accountability')
+			.select('collection', 'singleton', 'note', 'sort_field', 'accountability', 'versioning')
 			.from('directus_collections')),
 		...systemCollectionRows,
 	];
+
+	const versionToCanonical = new Map<string, string>();
 
 	for (const [collection, info] of Object.entries(schemaOverview)) {
 		if (toArray(env['DB_EXCLUDE_TABLES']).includes(collection)) {
@@ -150,10 +154,32 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 
 		const collectionMeta = collections.find((collectionMeta) => collectionMeta.collection === collection);
 
+		// Establish bidirectional links between a (canonical) collection and its version collection.
+		let versionOf = null;
+		let versionCollection = null;
+
+		if (toBoolean(collectionMeta?.versioning)) {
+			versionCollection = toVersionedCollectionName(collection);
+
+			// Add versionOf if the existing version collection has been pre-processed to this collection
+			const existingVersionCollection = result.collections[versionCollection];
+
+			if (existingVersionCollection?.versionOf === null) {
+				existingVersionCollection.versionOf = collection;
+			}
+
+			versionToCanonical.set(versionCollection, collection);
+		} else {
+			// Add versionOf if the existing version collection is post processed to this collection
+			versionOf = versionToCanonical.get(collection) ?? null;
+		}
+
 		result.collections[collection] = {
 			collection,
 			primary: info.primary,
 			singleton: toBoolean(collectionMeta?.singleton),
+			versionOf,
+			versionCollection,
 			note: collectionMeta?.note || null,
 			sortField: collectionMeta?.sort_field || null,
 			accountability: collectionMeta ? collectionMeta.accountability : 'all',
@@ -172,6 +198,8 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 					validation: null,
 					alias: false,
 					searchable: true,
+					versionOf: null,
+					versionField: null,
 				};
 			}),
 		};
@@ -208,6 +236,23 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 
 		if (validation && typeof validation === 'string') validation = parseJSON(validation);
 
+		/**
+		 * Establish bidirectional links between a relational field and its corresponding version field.
+		 * As fields are pre-seeded above no need for lookup
+		 */
+		let versionField = null;
+		const versionCollection = result.collections[field.collection]?.versionCollection;
+
+		if (versionCollection && special.some((s) => s === 'm2o' || 'o2m')) {
+			versionField = toVersionedRelationName(field.field);
+
+			const existingVersionField = result.collections[versionCollection]?.fields[versionField];
+
+			if (existingVersionField?.versionOf === null) {
+				existingVersionField.versionOf = field.field;
+			}
+		}
+
 		result.collections[field.collection]!.fields[field.field] = {
 			field: field.field,
 			defaultValue: existing?.defaultValue ?? null,
@@ -222,6 +267,8 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 			alias: existing?.alias ?? true,
 			validation: (validation as Filter) ?? null,
 			searchable: toBoolean(field.searchable) ?? true,
+			versionOf: existing?.versionOf ?? null,
+			versionField,
 		};
 	}
 

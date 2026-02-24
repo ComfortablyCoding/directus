@@ -10,6 +10,7 @@ import { joinFilterWithCases } from './join-filter-with-cases.js';
 import { applyLimit, applyOffset } from './pagination.js';
 import { applySearch } from './search.js';
 import { applySort } from './sort.js';
+import { applyVersion } from './version.js';
 
 type ApplyQueryOptions = {
 	aliasMap?: AliasMap;
@@ -37,6 +38,10 @@ export default function applyQuery(
 	let hasMultiRelationalFilter = false;
 
 	applyLimit(knex, dbQuery, query.limit);
+
+	if (query.version) {
+		applyVersion(knex, schema, dbQuery, query.version, collection);
+	}
 
 	if (query.offset) {
 		applyOffset(knex, dbQuery, query.offset);

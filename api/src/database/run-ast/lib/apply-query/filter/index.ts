@@ -203,6 +203,46 @@ export function applyFilter(
 
 				validateOperator(type, filterOperator, special);
 
+				/*
+				 * When filtering a versioned collection that targets a versioned collection via an M2O filter,
+				 * the condition must also be applied to the field on the target collection.
+				 * This is due to M2O querying both the live and draft tables.
+				 */
+				const versionOf = schema.collections[collection]?.versionOf;
+				const versionCollection = schema.collections[targetCollection]?.versionCollection;
+
+				const versionField = versionOf
+					? schema.collections[versionOf]?.fields[filterPath[0]!]?.versionField
+					: undefined;
+
+				if (relationType === 'm2o' && versionCollection && versionField) {
+					const versionFilterPath = filterPath
+						//Remove the nested PK field if it was injected
+						.slice(0, addNestedPkField ? -1 : undefined)
+						.with(0, versionField);
+
+					const { columnPath: versionColumnPath, targetCollection: versionTargetCollection } = getColumnPath({
+						path: versionFilterPath,
+						collection,
+						relations,
+						aliasMap,
+						schema,
+					});
+
+					if (versionColumnPath) {
+						dbQuery[logical].where((subQuery) => {
+							[
+								{ table: targetCollection, key: columnPath },
+								{ table: versionTargetCollection, key: versionColumnPath },
+							].forEach(({ table, key }) => {
+								applyOperator(knex, subQuery, schema, key, filterOperator, filterValue, 'or', table);
+							});
+						});
+
+						return;
+					}
+				}
+
 				applyOperator(knex, dbQuery, schema, columnPath, filterOperator, filterValue, logical, targetCollection);
 			} else {
 				const { type, special } = getFilterType(schema.collections[collection]!.fields, filterPath[0]!, collection)!;
@@ -210,6 +250,39 @@ export function applyFilter(
 				validateOperator(type, filterOperator, special);
 
 				const aliasedCollection = aliasMap['']?.alias || collection;
+
+				/*
+				 * When filtering a versioned collection with a top level M2O filter (e.g. {"m2o":{"_gte":1}})
+				 * that points to a versioned collection, apply the same condition to the version field.
+				 */
+				const versionOf = schema.collections[collection]?.versionOf;
+
+				const versionCollection = relation?.related_collection
+					? schema.collections[relation.related_collection]?.versionCollection
+					: undefined;
+
+				const versionField = versionOf
+					? schema.collections[versionOf]?.fields[filterPath[0]!]?.versionField
+					: undefined;
+
+				if (relation && relationType === 'm2o' && versionCollection && versionField) {
+					dbQuery[logical].where((subQuery) => {
+						[filterPath[0]!, versionField].forEach((field) => {
+							applyOperator(
+								knex,
+								subQuery,
+								schema,
+								`${aliasedCollection}.${field}`,
+								filterOperator,
+								filterValue,
+								'or',
+								collection,
+							);
+						});
+					});
+
+					return;
+				}
 
 				applyOperator(
 					knex,

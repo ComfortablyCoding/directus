@@ -23,6 +23,7 @@ export async function fetchAllowedFields(
 ): Promise<string[]> {
 	const policies = await fetchPolicies(accountability, { knex, schema });
 
+	// TODO: inject versioned collection for non relational field permissions (e.g `shadow_id`,`shadow_version`)
 	const permissions = await fetchPermissions(
 		{ action, collections: [collection], policies, accountability },
 		{ knex, schema },

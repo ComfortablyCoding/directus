@@ -16,6 +16,10 @@ export type FieldOverview = {
 	validation: Filter | null;
 	alias: boolean;
 	searchable: boolean;
+	// The reference field if this is a versioned field (e.g. version_author -> author)
+	versionOf: string | null;
+	// The versioned field for this field (e.g. author -> version_author)
+	versionField: string | null;
 };
 
 export type CollectionOverview = {
@@ -25,6 +29,10 @@ export type CollectionOverview = {
 	sortField: string | null;
 	note: string | null;
 	accountability: 'all' | 'activity' | null;
+	// The reference collection if this is a versioned collection (e.g. version_authors -> authors)
+	versionOf: string | null;
+	// The versioned collection for this collection (e.g. authors -> version_authors)
+	versionCollection: string | null;
 	fields: {
 		[name: string]: FieldOverview;
 	};

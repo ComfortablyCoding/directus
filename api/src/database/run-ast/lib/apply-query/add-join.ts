@@ -3,6 +3,7 @@ import type { SchemaOverview } from '@directus/types';
 import { getRelationInfo } from '@directus/utils';
 import type { Knex } from 'knex';
 import { clone } from 'lodash-es';
+import { VERSION_SYSTEM_FIELDS } from '../../../../services/versions/constants.js';
 import type { AliasMap } from '../../../../utils/get-column-path.js';
 import { getHelpers } from '../../../helpers/index.js';
 import { generateJoinAlias } from '../../utils/generate-alias.js';
@@ -94,6 +95,32 @@ export function addJoin({ path, collection, aliasMap, rootQuery, schema, knex }:
 					`${alias}.${schema.collections[relation.related_collection!]!.primary}`,
 				);
 
+				/**
+				 * Parent here is the live version, so we must join with the draft as well
+				 * A join with 2 seperate tables is required here as one M2O will points to the live and the other to draft
+				 */
+				const versionCollection = schema.collections[relation.related_collection!]?.versionCollection;
+				const versionOf = schema.collections[parentCollection]?.versionOf;
+
+				const versionRelationField = versionOf
+					? schema.collections[versionOf]?.fields[relation.field]?.versionField
+					: undefined;
+
+				if (versionOf && versionCollection && versionRelationField) {
+					const versionPathParts = pathParts.with(0, versionRelationField);
+					const versionAlias = generateJoinAlias(versionCollection, versionPathParts, relationType, parentFields);
+
+					const versionAliasKey = parentFields ? `${parentFields}.${versionRelationField}` : `${versionRelationField}`;
+
+					rootQuery.leftJoin(
+						{ [versionAlias]: versionCollection },
+						`${aliasedParentCollection}.${versionRelationField}`,
+						`${versionAlias}.${VERSION_SYSTEM_FIELDS.primary.field}`,
+					);
+
+					aliasMap[versionAliasKey] = { alias: versionAlias, collection: versionCollection };
+				}
+
 				aliasMap[aliasKey]!.collection = relation.related_collection!;
 
 				isJoinAdded = true;
@@ -141,11 +168,26 @@ export function addJoin({ path, collection, aliasMap, rootQuery, schema, knex }:
 				hasMultiRelational = true;
 				isJoinAdded = true;
 			} else if (relationType === 'o2m') {
-				rootQuery.leftJoin(
-					{ [alias]: relation.collection },
-					`${aliasedParentCollection}.${schema.collections[relation.related_collection!]!.primary}`,
-					`${alias}.${relation.field}`,
-				);
+				rootQuery.leftJoin({ [alias]: relation.collection! }, (joinClause) => {
+					joinClause.on(
+						`${aliasedParentCollection}.${schema.collections[relation.related_collection!]!.primary}`,
+						`${alias}.${relation.field}`,
+					);
+
+					/**
+					 * O2M is the inverse of M2O, the parent here is the shadow we therefor must join to the live.
+					 * The join can be within the same table as both live and draft M2O from O2M are in the versioned table
+					 */
+					const collection = schema.collections[relation.collection]?.versionOf;
+					const versionOf = schema.collections[relation.collection]?.fields[relation.field]?.versionOf;
+
+					if (collection && versionOf) {
+						joinClause.orOn(
+							`${aliasedParentCollection}.${schema.collections[collection]?.primary}`,
+							`${alias}.${versionOf}`,
+						);
+					}
+				});
 
 				aliasMap[aliasKey]!.collection = relation.collection;
 

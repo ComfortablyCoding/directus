@@ -1,4 +1,5 @@
 import type { Query, SchemaOverview } from '@directus/types';
+import { VERSION_SYSTEM_FIELDS } from '../../../services/versions/constants.js';
 import type { FieldNode, FunctionFieldNode, NestedCollectionNode } from '../../../types/ast.js';
 import { parseFilterKey } from '../../../utils/parse-filter-key.js';
 
@@ -22,6 +23,17 @@ export async function parseCurrentLevel(
 				columnsToSelectInternal.push(child.fieldKey);
 			}
 
+			// TODO: skip if raw (/versions)
+			const versionCollection = schema.collections[collection]?.versionOf;
+
+			const versionField = versionCollection
+				? schema.collections[versionCollection]?.fields[child.fieldKey]?.versionOf
+				: undefined;
+
+			if (versionCollection && versionField) {
+				columnsToSelectInternal.push(versionField);
+			}
+
 			continue;
 		}
 
@@ -29,6 +41,17 @@ export async function parseCurrentLevel(
 
 		if (child.type === 'm2o') {
 			columnsToSelectInternal.push(child.relation.field);
+
+			// TODO: skip if raw (/versions)
+			const versionCollection = schema.collections[child.relation.collection]?.versionOf;
+
+			const versionField = versionCollection
+				? schema.collections[versionCollection]?.fields[child.relation.field]?.versionOf
+				: undefined;
+
+			if (versionCollection && versionField) {
+				columnsToSelectInternal.push(versionField);
+			}
 		}
 
 		if (child.type === 'a2o') {
@@ -37,6 +60,14 @@ export async function parseCurrentLevel(
 		}
 
 		nestedCollectionNodes.push(child);
+	}
+
+	// TODO: skip if raw (/versions)
+	if (schema.collections[collection]?.versionOf) {
+		// inject version fields for "meta"
+		Object.values(VERSION_SYSTEM_FIELDS).forEach((f) => {
+			columnsToSelectInternal.push(f.field);
+		});
 	}
 
 	const isAggregate = (query.group || (query.aggregate && Object.keys(query.aggregate).length > 0)) ?? false;

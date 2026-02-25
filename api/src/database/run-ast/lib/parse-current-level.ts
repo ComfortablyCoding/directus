@@ -27,7 +27,7 @@ export async function parseCurrentLevel(
 			const versionCollection = schema.collections[collection]?.versionOf;
 
 			const versionField = versionCollection
-				? schema.collections[versionCollection]?.fields[child.fieldKey]?.versionOf
+				? schema.collections[versionCollection]?.fields[child.fieldKey]?.versionField
 				: undefined;
 
 			if (versionCollection && versionField) {
@@ -46,7 +46,7 @@ export async function parseCurrentLevel(
 			const versionCollection = schema.collections[child.relation.collection]?.versionOf;
 
 			const versionField = versionCollection
-				? schema.collections[versionCollection]?.fields[child.relation.field]?.versionOf
+				? schema.collections[versionCollection]?.fields[child.relation.field]?.versionField
 				: undefined;
 
 			if (versionCollection && versionField) {

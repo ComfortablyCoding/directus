@@ -243,7 +243,7 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 		let versionField = null;
 		const versionCollection = result.collections[field.collection]?.versionCollection;
 
-		if (versionCollection && special.some((s) => s === 'm2o' || 'o2m')) {
+		if (versionCollection && special.some((s) => s === 'm2o' || s === 'o2m')) {
 			versionField = toVersionedRelationName(field.field);
 
 			const existingVersionField = result.collections[versionCollection]?.fields[versionField];

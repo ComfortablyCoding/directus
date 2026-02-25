@@ -156,6 +156,8 @@ export async function parseFields(
 		}
 	}
 
+	// inject version meta fields (permissioned)
+
 	for (const [fieldKey, nestedFields] of Object.entries(relationalStructure)) {
 		let fieldName = fieldKey;
 

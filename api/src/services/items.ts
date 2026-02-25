@@ -1,6 +1,6 @@
 import { Action } from '@directus/constants';
 import { useEnv } from '@directus/env';
-import { ErrorCode, ForbiddenError, InvalidPayloadError, isDirectusError } from '@directus/errors';
+import { ErrorCode, ForbiddenError, InvalidPayloadError, InvalidQueryError, isDirectusError } from '@directus/errors';
 import { isSystemCollection } from '@directus/system-data';
 import type {
 	AbstractService,
@@ -494,6 +494,8 @@ export class ItemsService<Item extends AnyItem = AnyItem, Collection extends str
 	 * Get items by query.
 	 */
 	async readByQuery(query: Query, opts?: QueryOptions): Promise<Item[]> {
+		let collection = this.collection;
+
 		const updatedQuery =
 			opts?.emitEvents !== false
 				? await emitter.emitFilter(
@@ -512,9 +514,30 @@ export class ItemsService<Item extends AnyItem = AnyItem, Collection extends str
 					)
 				: query;
 
+		if (updatedQuery.version) {
+			if (this.accountability) {
+				await validateAccess(
+					{
+						collection,
+						accountability: this.accountability,
+						action: 'read',
+					},
+					{ schema: this.schema, knex: this.knex },
+				);
+			}
+
+			collection = this.schema.collections[this.collection]?.versionCollection;
+
+			if (typeof collection !== 'string') {
+				throw new InvalidQueryError({
+					reason: `"version" is not supported for collection "${this.collection}" as it is not versioned`,
+				});
+			}
+		}
+
 		let ast = await getAstFromQuery(
 			{
-				collection: this.collection,
+				collection: collection,
 				query: updatedQuery,
 				accountability: this.accountability,
 			},
@@ -543,11 +566,13 @@ export class ItemsService<Item extends AnyItem = AnyItem, Collection extends str
 		const filteredRecords =
 			opts?.emitEvents !== false
 				? await emitter.emitFilter(
-						this.eventScope === 'items' ? ['items.read', `${this.collection}.items.read`] : `${this.eventScope}.read`,
+						this.eventScope === 'items'
+							? ['items.read', `${versionCollection ?? collection}.items.read`]
+							: `${this.eventScope}.read`,
 						records,
 						{
 							query: updatedQuery,
-							collection: this.collection,
+							collection,
 						},
 						{
 							database: this.knex,
@@ -559,11 +584,11 @@ export class ItemsService<Item extends AnyItem = AnyItem, Collection extends str
 
 		if (opts?.emitEvents !== false) {
 			emitter.emitAction(
-				this.eventScope === 'items' ? ['items.read', `${this.collection}.items.read`] : `${this.eventScope}.read`,
+				this.eventScope === 'items' ? ['items.read', `${collection}.items.read`] : `${this.eventScope}.read`,
 				{
 					payload: filteredRecords,
 					query: updatedQuery,
-					collection: this.collection,
+					collection,
 				},
 				{
 					database: this.knex || getDatabase(),

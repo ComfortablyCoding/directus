@@ -1,6 +1,8 @@
 import type { Item, SchemaOverview } from '@directus/types';
 import { toArray } from '@directus/utils';
-import { cloneDeep, pick } from 'lodash-es';
+import { cloneDeep, get, pick, set, unset } from 'lodash-es';
+import { VERSION_SYSTEM_FIELDS } from '../../../services/versions/constants.js';
+import { toVersionNode } from '../../../services/versions/to-version-node.js';
 import type { AST, NestedCollectionNode } from '../../../types/ast.js';
 import { applyFunctionToColumnName } from './apply-function-to-column-name.js';
 
@@ -89,8 +91,27 @@ export function removeTemporaryFields(
 
 			let item = rawItem;
 
-			for (const nestedNode of nestedCollectionNodes) {
-				item[nestedNode.fieldKey] = removeTemporaryFields(
+			for (let nestedNode of nestedCollectionNodes) {
+				const relationCollection =
+					nestedNode.type === 'm2o' ? nestedNode.relation.related_collection! : nestedNode.relation.collection;
+
+				// Dont duplicate process versioned nodes
+				if (schema.collections[relationCollection!]?.versionOf) {
+					continue;
+				}
+
+				const key = nestedNode.fieldKey;
+
+				// Merge version node into original if its empty, for m2o only
+				if (
+					schema.collections[relationCollection!]?.versionCollection &&
+					item[nestedNode.fieldKey] == null &&
+					item[schema.collections[relationCollection!]!.fields[nestedNode.fieldKey]!.versionField!]
+				) {
+					nestedNode = toVersionNode(nestedNode);
+				}
+
+				item[key] = removeTemporaryFields(
 					schema,
 					item[nestedNode.fieldKey],
 					nestedNode,
@@ -101,9 +122,30 @@ export function removeTemporaryFields(
 				);
 			}
 
+			// merge relational data
+			if (schema.collections[ast.name]?.versionOf) {
+				Object.values(schema.collections[ast.name]?.fields ?? {}).forEach((f) => {
+					if (f.versionField && item[f.field] === null && item[f.versionField]) {
+						item[f.field] = item[f.versionField];
+					}
+				});
+			}
+
+			Object.values(VERSION_SYSTEM_FIELDS).forEach(({ field }) => {
+				const metaValue = get(item, field);
+
+				if (metaValue) {
+					unset(item, field);
+					set(item, ['$meta', field], metaValue);
+				}
+			});
+
 			const fieldsWithFunctionsApplied = fields.map((field) => applyFunctionToColumnName(field));
 
-			item = fields.length > 0 ? pick(rawItem, fieldsWithFunctionsApplied, aliasFields) : rawItem[primaryKeyField];
+			item =
+				fields.length > 0
+					? pick(rawItem, fieldsWithFunctionsApplied, aliasFields, ['$meta'])
+					: rawItem[primaryKeyField];
 
 			items.push(item);
 		}

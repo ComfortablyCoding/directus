@@ -56,7 +56,7 @@ export const VERSION_SYSTEM_FIELDS: Record<
 		schema: {},
 	},
 	date_updated: {
-		field: 'shadow_user_updated',
+		field: 'shadow_date_updated',
 		type: 'string',
 		meta: {
 			special: ['date-updated'],

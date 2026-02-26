@@ -1,5 +1,6 @@
 import type { Query, SchemaOverview } from '@directus/types';
 import { VERSION_SYSTEM_FIELDS } from '../../../services/versions/constants.js';
+import { toVersionNode } from '../../../services/versions/to-version-node.js';
 import type { FieldNode, FunctionFieldNode, NestedCollectionNode } from '../../../types/ast.js';
 import { parseFilterKey } from '../../../utils/parse-filter-key.js';
 
@@ -51,6 +52,7 @@ export async function parseCurrentLevel(
 
 			if (versionCollection && versionField) {
 				columnsToSelectInternal.push(versionField);
+				nestedCollectionNodes.push(toVersionNode(child));
 			}
 		}
 

@@ -22,9 +22,17 @@ export interface ConvertWildCardsContext {
 export async function convertWildcards(options: ConvertWildcardsOptions, context: ConvertWildCardsContext) {
 	const fields = cloneDeep(options.fields);
 
-	const fieldsInCollection = Object.entries(context.schema.collections[options.collection]!.fields).map(
-		([name]) => name,
-	);
+	const fieldsInCollection: string[] = [];
+	const collection = context.schema.collections[options.collection]!;
+
+	Object.entries(collection.fields).forEach(([field]) => {
+		// skip FK shadow fields
+		if (collection.versionOf && collection.fields[field]?.versionOf) {
+			return;
+		}
+
+		fieldsInCollection.push(field);
+	});
 
 	let allowedFields: string[] | null = fieldsInCollection;
 
@@ -74,11 +82,21 @@ export async function convertWildcards(options: ConvertWildcardsOptions, context
 
 			if (allowedFields.includes('*')) {
 				relationalFields = context.schema.relations.reduce<string[]>((acc, relation) => {
-					if (relation.collection === options.collection && !acc.includes(relation.field)) {
+					if (
+						relation.collection === options.collection &&
+						relation.related_collection &&
+						context.schema.collections[relation.related_collection]?.fields[relation.field]?.versionOf &&
+						!acc.includes(relation.field)
+					) {
 						acc.push(relation.field);
 					}
 
-					if (relation.related_collection === options.collection && !acc.includes(relation.meta!.one_field!)) {
+					if (
+						relation.related_collection === options.collection &&
+						relation.meta?.one_field &&
+						context.schema.collections[relation.collection]?.fields[relation.meta.one_field]?.versionOf &&
+						!acc.includes(relation.meta.one_field)
+					) {
 						acc.push(relation.meta!.one_field!);
 					}
 

@@ -95,13 +95,20 @@ export function removeTemporaryFields(
 				const key = nestedNode.fieldKey;
 
 				// Merge version node into original if its empty, for m2o only
-				const versionOf = schema.collections[nestedNode.relation.collection]?.versionOf;
-
-				const versionField = versionOf
-					? schema.collections[versionOf]?.fields[nestedNode.fieldKey]?.versionField
+				const isTargetVersioned = nestedNode.relation.related_collection
+					? schema.collections[nestedNode.relation.related_collection]?.versionedBy
 					: undefined;
 
-				if (nestedNode.type === 'm2o' && versionOf && versionField && item[key] === null && item[versionField]) {
+				const versionField =
+					schema.collections[nestedNode.relation.collection]?.fields[nestedNode.fieldKey]?.versionedBy;
+
+				if (
+					nestedNode.type === 'm2o' &&
+					isTargetVersioned &&
+					versionField &&
+					item[key] === null &&
+					item[versionField]
+				) {
 					nestedNode = toVersionNode(nestedNode);
 				}
 
@@ -118,11 +125,10 @@ export function removeTemporaryFields(
 
 			// merge relational data
 			if (schema.collections[ast.name]?.versionOf) {
-				const collection = schema.collections[ast.name]!.versionOf!;
-
-				Object.values(schema.collections[collection]?.fields ?? {}).forEach((f) => {
-					if (f.versionField && item[f.field] === null && item[f.versionField]) {
-						item[f.field] = item[f.versionField];
+				Object.values(schema.collections[ast.name]?.fields ?? {}).forEach((f) => {
+					if (f.versionedBy && item[f.field] === null && item[f.versionedBy]) {
+						item[f.field] = item[f.versionedBy];
+						unset(item, f.versionedBy);
 					}
 				});
 

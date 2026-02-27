@@ -99,11 +99,11 @@ export function addJoin({ path, collection, aliasMap, rootQuery, schema, knex }:
 				 * Parent here is the live version, so we must join with the draft as well
 				 * A join with 2 seperate tables is required here as one M2O will points to the live and the other to draft
 				 */
-				const versionCollection = schema.collections[relation.related_collection!]?.versionCollection;
+				const versionCollection = schema.collections[relation.related_collection!]?.versionedBy;
 				const versionOf = schema.collections[parentCollection]?.versionOf;
 
 				const versionRelationField = versionOf
-					? schema.collections[versionOf]?.fields[relation.field]?.versionField
+					? schema.collections[versionOf]?.fields[relation.field]?.versionedBy
 					: undefined;
 
 				if (versionOf && versionCollection && versionRelationField) {
@@ -173,20 +173,6 @@ export function addJoin({ path, collection, aliasMap, rootQuery, schema, knex }:
 						`${aliasedParentCollection}.${schema.collections[relation.related_collection!]!.primary}`,
 						`${alias}.${relation.field}`,
 					);
-
-					/**
-					 * O2M is the inverse of M2O, the parent here is the shadow we therefor must join to the live.
-					 * The join can be within the same table as both live and draft M2O from O2M are in the versioned table
-					 */
-					const collection = schema.collections[relation.collection]?.versionOf;
-					const versionOf = schema.collections[relation.collection]?.fields[relation.field]?.versionOf;
-
-					if (collection && versionOf) {
-						joinClause.orOn(
-							`${aliasedParentCollection}.${schema.collections[collection]?.primary}`,
-							`${alias}.${versionOf}`,
-						);
-					}
 				});
 
 				aliasMap[aliasKey]!.collection = relation.collection;

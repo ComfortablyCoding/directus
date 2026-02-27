@@ -76,7 +76,7 @@ const readHandler = asyncHandler(async (req, res, next) => {
 			);
 		}
 
-		const versionCollection = req.schema.collections[req.collection]?.versionCollection;
+		const versionCollection = req.schema.collections[req.collection]?.versionedBy;
 
 		if (!versionCollection) {
 			throw new InvalidQueryError({
@@ -139,7 +139,7 @@ router.get(
 				);
 			}
 
-			const versionCollection = req.schema.collections[req.collection]?.versionCollection;
+			const versionCollection = req.schema.collections[req.collection]?.versionedBy;
 
 			if (!versionCollection) {
 				throw new InvalidQueryError({

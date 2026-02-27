@@ -19,7 +19,7 @@ export type FieldOverview = {
 	// The reference field if this is a versioned field (e.g. version_author -> author)
 	versionOf: string | null;
 	// The versioned field for this field (e.g. author -> version_author)
-	versionField: string | null;
+	versionedBy: string | null;
 };
 
 export type CollectionOverview = {
@@ -32,7 +32,7 @@ export type CollectionOverview = {
 	// The reference collection if this is a versioned collection (e.g. version_authors -> authors)
 	versionOf: string | null;
 	// The versioned collection for this collection (e.g. authors -> version_authors)
-	versionCollection: string | null;
+	versionedBy: string | null;
 	fields: {
 		[name: string]: FieldOverview;
 	};

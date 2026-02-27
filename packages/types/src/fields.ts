@@ -56,6 +56,8 @@ export type FieldMeta = {
 	searchable: boolean;
 	system?: true;
 	clear_hidden_value_on_save?: boolean;
+	versionOf: string | null;
+	versionedBy: string | null;
 };
 
 export interface FieldRaw {

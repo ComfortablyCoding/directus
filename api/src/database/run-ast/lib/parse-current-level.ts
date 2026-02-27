@@ -25,13 +25,11 @@ export async function parseCurrentLevel(
 			}
 
 			// TODO: skip if raw (/versions)
-			const versionCollection = schema.collections[collection]?.versionOf;
+			const isVersionedCollection = schema.collections[collection]?.versionOf;
 
-			const versionField = versionCollection
-				? schema.collections[versionCollection]?.fields[child.fieldKey]?.versionField
-				: undefined;
+			const versionField = schema.collections[collection]?.fields[child.fieldKey]?.versionedBy;
 
-			if (versionCollection && versionField) {
+			if (isVersionedCollection && versionField) {
 				columnsToSelectInternal.push(versionField);
 			}
 
@@ -44,13 +42,11 @@ export async function parseCurrentLevel(
 			columnsToSelectInternal.push(child.relation.field);
 
 			// TODO: skip if raw (/versions)
-			const versionCollection = schema.collections[child.relation.collection]?.versionOf;
+			const isVersionedCollection = schema.collections[child.relation.collection]?.versionOf;
 
-			const versionField = versionCollection
-				? schema.collections[versionCollection]?.fields[child.relation.field]?.versionField
-				: undefined;
+			const versionField = schema.collections[child.relation.collection]?.fields[child.relation.field]?.versionedBy;
 
-			if (versionCollection && versionField) {
+			if (isVersionedCollection && versionField) {
 				columnsToSelectInternal.push(versionField);
 				nestedCollectionNodes.push(toVersionNode(child));
 			}

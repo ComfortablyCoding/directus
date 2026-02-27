@@ -91,12 +91,7 @@ export async function convertWildcards(options: ConvertWildcardsOptions, context
 						acc.push(relation.field);
 					}
 
-					if (
-						relation.related_collection === options.collection &&
-						relation.meta?.one_field &&
-						context.schema.collections[relation.collection]?.fields[relation.meta.one_field]?.versionOf &&
-						!acc.includes(relation.meta.one_field)
-					) {
+					if (relation.related_collection === options.collection && !acc.includes(relation.meta!.one_field!)) {
 						acc.push(relation.meta!.one_field!);
 					}
 

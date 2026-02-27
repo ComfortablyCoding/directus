@@ -208,14 +208,14 @@ export function applyFilter(
 				 * the condition must also be applied to the field on the target collection.
 				 * This is due to M2O querying both the live and draft tables.
 				 */
-				const versionOf = schema.collections[collection]?.versionOf;
-				const versionCollection = schema.collections[targetCollection]?.versionCollection;
+				const versionCollection = schema.collections[collection]?.versionedBy;
+				const isTargetVersioned = schema.collections[targetCollection]?.versionedBy;
 
-				const versionField = versionOf
-					? schema.collections[versionOf]?.fields[filterPath[0]!]?.versionField
+				const versionField = versionCollection
+					? schema.collections[versionCollection]?.fields[filterPath[0]!]?.versionedBy
 					: undefined;
 
-				if (relationType === 'm2o' && versionCollection && versionField) {
+				if (relationType === 'm2o' && versionCollection && isTargetVersioned && versionField) {
 					const versionFilterPath = filterPath
 						//Remove the nested PK field if it was injected
 						.slice(0, addNestedPkField ? -1 : undefined)
@@ -255,17 +255,17 @@ export function applyFilter(
 				 * When filtering a versioned collection with a top level M2O filter (e.g. {"m2o":{"_gte":1}})
 				 * that points to a versioned collection, apply the same condition to the version field.
 				 */
-				const versionOf = schema.collections[collection]?.versionOf;
+				const versionCollection = schema.collections[collection]?.versionedBy;
 
-				const versionCollection = relation?.related_collection
-					? schema.collections[relation.related_collection]?.versionCollection
+				const isTargetVersioned = relation?.related_collection
+					? schema.collections[relation.related_collection]?.versionedBy
 					: undefined;
 
-				const versionField = versionOf
-					? schema.collections[versionOf]?.fields[filterPath[0]!]?.versionField
+				const versionField = versionCollection
+					? schema.collections[versionCollection]?.fields[filterPath[0]!]?.versionedBy
 					: undefined;
 
-				if (relation && relationType === 'm2o' && versionCollection && versionField) {
+				if (relation && relationType === 'm2o' && versionCollection && isTargetVersioned && versionField) {
 					dbQuery[logical].where((subQuery) => {
 						[filterPath[0]!, versionField].forEach((field) => {
 							applyOperator(

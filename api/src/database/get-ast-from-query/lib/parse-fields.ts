@@ -152,7 +152,19 @@ export async function parseFields(
 				continue;
 			}
 
-			children.push({ type: 'field', name, fieldKey, whenCase: [], alias });
+			const versionedCollection = context.schema.collections[options.parentCollection]?.versionedBy;
+
+			const versionField = versionedCollection
+				? context.schema.collections[versionedCollection]?.fields[fieldKey]?.versionedBy
+				: undefined;
+
+			let coalesceWith = null;
+
+			if (options.query.version && versionedCollection && versionField) {
+				coalesceWith = versionField;
+			}
+
+			children.push({ type: 'field', name, fieldKey, whenCase: [], alias, coalesceWith });
 		}
 	}
 
@@ -290,6 +302,16 @@ export async function parseFields(
 				// If a group by is used, the result needs to be grouped by the foreign key of the relation first, so results
 				// are correctly grouped under the foreign key when extracting the grouped results from the nested queries.
 				child.query.group.unshift(relation.field);
+			}
+
+			const versionedCollection = context.schema.collections[relatedCollection]?.versionedBy;
+
+			const versionField = versionedCollection
+				? context.schema.collections[versionedCollection]?.fields[fieldKey]?.versionedBy
+				: undefined;
+
+			if (child?.type === 'm2o' && child.query.version && versionedCollection && versionField) {
+				child.coalesceWith = versionField;
 			}
 		}
 

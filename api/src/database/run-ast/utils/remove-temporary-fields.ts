@@ -95,19 +95,11 @@ export function removeTemporaryFields(
 				const key = nestedNode.fieldKey;
 
 				// Merge version node into original if its empty, for m2o only
-				const isTargetVersioned = nestedNode.relation.related_collection
-					? schema.collections[nestedNode.relation.related_collection]?.versionedBy
-					: undefined;
-
-				const versionField =
-					schema.collections[nestedNode.relation.collection]?.fields[nestedNode.fieldKey]?.versionedBy;
-
 				if (
 					nestedNode.type === 'm2o' &&
-					isTargetVersioned &&
-					versionField &&
+					nestedNode.coalesceWith &&
 					item[key] === null &&
-					item[versionField]
+					item[nestedNode.coalesceWith]
 				) {
 					nestedNode = toVersionNode(nestedNode);
 				}
@@ -124,7 +116,7 @@ export function removeTemporaryFields(
 			}
 
 			// merge relational data
-			if (schema.collections[ast.name]?.versionOf) {
+			if (ast.type === 'm2o' && ast.coalesceWith && schema.collections[ast.name]?.versionOf) {
 				Object.values(schema.collections[ast.name]?.fields ?? {}).forEach((f) => {
 					if (f.versionedBy && item[f.field] === null && item[f.versionedBy]) {
 						item[f.field] = item[f.versionedBy];

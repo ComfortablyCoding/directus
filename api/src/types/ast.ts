@@ -19,6 +19,7 @@ export type M2ONode = {
 	 * Permissions rules for the item access of the children of this item.
 	 */
 	cases: Filter[];
+	coalesceWith?: string | null;
 };
 
 export type A2MNode = {
@@ -85,6 +86,7 @@ export type FieldNode = {
 	 * Which permission cases have to be met on the current item for this field to return a value
 	 */
 	whenCase: number[];
+	coalesceWith?: string | null;
 };
 
 export type FunctionFieldNode = {

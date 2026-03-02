@@ -1,6 +1,7 @@
 import type { Item, SchemaOverview } from '@directus/types';
 import { toArray } from '@directus/utils';
 import { isNil, merge, uniq } from 'lodash-es';
+import { toVersionNode } from '../../../services/versions/to-version-node.js';
 import type { NestedCollectionNode } from '../../../types/ast.js';
 
 export function applyParentFilters(
@@ -18,6 +19,16 @@ export function applyParentFilters(
 			const foreignIds = uniq(parentItems.map((res) => res[nestedNode.relation.field])).filter((id) => !isNil(id));
 
 			merge(nestedNode, { query: { filter: { [foreignField]: { _in: foreignIds } } } });
+
+			const versionedCollection = schema.collections[nestedNode.relation.related_collection!]?.versionedBy;
+
+			if (versionedCollection && nestedNode.coalesceWith) {
+				const foreignField = schema.collections[versionedCollection]!.primary;
+				const versionField = schema.collections[versionedCollection]!.fields[nestedNode.coalesceWith]!.versionedBy!;
+				const foreignIds = uniq(parentItems.map((res) => res[versionField])).filter((id) => !isNil(id));
+
+				merge(toVersionNode(nestedNode), { query: { filter: { [foreignField]: { _in: foreignIds } } } });
+			}
 		} else if (nestedNode.type === 'o2m') {
 			const relatedM2OisFetched = !!nestedNode.children.find((child) => {
 				return child.type === 'field' && child.name === nestedNode.relation.field;

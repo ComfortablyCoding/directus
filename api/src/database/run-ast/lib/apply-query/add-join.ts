@@ -3,6 +3,7 @@ import type { SchemaOverview } from '@directus/types';
 import { getRelationInfo } from '@directus/utils';
 import type { Knex } from 'knex';
 import { clone } from 'lodash-es';
+import { VERSION_SYSTEM_FIELDS } from '../../../../services/versions/constants.js';
 import type { AliasMap } from '../../../../utils/get-column-path.js';
 import { getHelpers } from '../../../helpers/index.js';
 import { generateJoinAlias } from '../../utils/generate-alias.js';
@@ -53,9 +54,10 @@ type AddJoinProps = {
 	rootQuery: Knex.QueryBuilder;
 	schema: SchemaOverview;
 	knex: Knex;
+	version: boolean;
 };
 
-export function addJoin({ path, collection, aliasMap, rootQuery, schema, knex }: AddJoinProps) {
+export function addJoin({ path, collection, aliasMap, rootQuery, schema, knex, version }: AddJoinProps) {
 	let hasMultiRelational = false;
 	let isJoinAdded = false;
 
@@ -95,6 +97,23 @@ export function addJoin({ path, collection, aliasMap, rootQuery, schema, knex }:
 				);
 
 				aliasMap[aliasKey]!.collection = relation.related_collection!;
+
+				if (version && schema.collections[collection]?.fields['shadow_' + relation.field]) {
+					const versionRelationField = 'shadow_' + relation.field;
+					const versionCollection = 'shadow_' + relation.related_collection;
+					const versionPathParts = pathParts.with(0, versionRelationField);
+					const versionAlias = generateJoinAlias(versionCollection, versionPathParts, relationType, parentFields);
+
+					const versionAliasKey = parentFields ? `${parentFields}.${versionRelationField}` : `${versionRelationField}`;
+
+					rootQuery.leftJoin(
+						{ [versionAlias]: versionCollection },
+						`${aliasedParentCollection}.${versionRelationField}`,
+						`${versionAlias}.${VERSION_SYSTEM_FIELDS.primary.field}`,
+					);
+
+					aliasMap[versionAliasKey] = { alias: versionAlias, collection: versionCollection };
+				}
 
 				isJoinAdded = true;
 			} else if (relationType === 'a2o') {

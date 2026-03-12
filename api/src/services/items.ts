@@ -494,6 +494,16 @@ export class ItemsService<Item extends AnyItem = AnyItem, Collection extends str
 	 * Get items by query.
 	 */
 	async readByQuery(query: Query, opts?: QueryOptions): Promise<Item[]> {
+		if (query.version && this.schema.collections[this.collection]?.versioned) {
+			const versionItemsService = new ItemsService<Item>('shadow_' + this.collection, {
+				accountability: this.accountability,
+				knex: this.knex,
+				schema: this.schema,
+			});
+
+			return versionItemsService.readByQuery(query);
+		}
+
 		const updatedQuery =
 			opts?.emitEvents !== false
 				? await emitter.emitFilter(
@@ -588,13 +598,7 @@ export class ItemsService<Item extends AnyItem = AnyItem, Collection extends str
 		const filterWithKey = assign({}, query.filter, { [primaryKeyField]: { _eq: key } });
 		const queryWithKey = assign({}, query, { filter: filterWithKey });
 
-		let results: Item[] = [];
-
-		if (query.version && query.version !== 'main') {
-			results = [await handleVersion(this, key, queryWithKey, opts)];
-		} else {
-			results = await this.readByQuery(queryWithKey, opts);
-		}
+		const results = await this.readByQuery(queryWithKey, opts);
 
 		if (results.length === 0) {
 			throw new ForbiddenError();

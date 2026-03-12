@@ -22,6 +22,14 @@ export async function processAst(options: ProcessAstOptions, context: Context) {
 	const fieldMap: FieldMap = fieldMapFromAst(options.ast, context.schema);
 	const collections = collectionsInFieldMap(fieldMap);
 
+	if (options.ast.query.version) {
+		for (const collection of collections) {
+			if (collection.startsWith('shadow_')) {
+				collections.push(collection.replace('shadow_', ''));
+			}
+		}
+	}
+
 	if (!options.accountability || options.accountability.admin) {
 		// Validate the field existence, even if no permissions apply to the current accountability
 		for (const [path, { collection, fields }] of [...fieldMap.read.entries(), ...fieldMap.other.entries()]) {
@@ -53,12 +61,28 @@ export async function processAst(options: ProcessAstOptions, context: Context) {
 
 	// Validate permissions for the fields
 	for (const [path, { collection, fields }] of fieldMap.other.entries()) {
-		validatePathPermissions(path, permissions, collection, fields);
+		if (options.action === 'read' && options.ast.query.version && collection.startsWith('shadow_')) {
+			// check read access to main + fields
+			validatePathPermissions(path, permissions, collection.replace('shadow_', ''), fields);
+
+			// check read access to shadow collection
+			validatePathPermissions(path, readPermissions, collection, new Set());
+		} else {
+			validatePathPermissions(path, permissions, collection, fields);
+		}
 	}
 
 	// Validate permission for read only fields
 	for (const [path, { collection, fields }] of fieldMap.read.entries()) {
-		validatePathPermissions(path, readPermissions, collection, fields);
+		if (options.action === 'read' && options.ast.query.version && collection.startsWith('shadow_')) {
+			// check read access to main + fields
+			validatePathPermissions(path, readPermissions, collection.replace('shadow_', ''), fields);
+
+			// check read access to shadow collection
+			validatePathPermissions(path, readPermissions, collection, new Set());
+		} else {
+			validatePathPermissions(path, readPermissions, collection, fields);
+		}
 	}
 
 	injectCases(options.ast, permissions);

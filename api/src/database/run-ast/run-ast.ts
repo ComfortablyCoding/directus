@@ -112,7 +112,7 @@ export async function runAst(
 		if (!items || (Array.isArray(items) && items.length === 0)) return items;
 
 		// Apply the `_in` filters to the nested collection batches
-		const nestedNodes = applyParentFilters(schema, nestedCollectionNodes, items);
+		const nestedNodes = applyParentFilters(schema, nestedCollectionNodes, items, Boolean(query.version));
 
 		for (const nestedNode of nestedNodes) {
 			let nestedItems: Item[] | null = [];

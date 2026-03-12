@@ -43,6 +43,7 @@ export async function parseFields(
 			alias: options.query.alias,
 			accountability: options.accountability,
 			backlink: options.query.backlink,
+			version: Boolean(options.query.version),
 		},
 		context,
 	);

@@ -1,6 +1,8 @@
 import type { Item, SchemaOverview } from '@directus/types';
 import { toArray } from '@directus/utils';
-import { cloneDeep, pick } from 'lodash-es';
+import { cloneDeep, get, merge, pick, set } from 'lodash-es';
+import { VERSION_SYSTEM_FIELDS } from '../../../services/versions/constants.js';
+import { toVersionNode } from '../../../services/versions/to-version-node.js';
 import type { AST, NestedCollectionNode } from '../../../types/ast.js';
 import { applyFunctionToColumnName } from './apply-function-to-column-name.js';
 
@@ -70,6 +72,16 @@ export function removeTemporaryFields(
 
 			if (child.type !== 'field' && child.type !== 'functionField') {
 				nestedCollectionNodes.push(child);
+
+				if (
+					ast.query.version &&
+					ast.name.startsWith('shadow_') &&
+					child.type === 'm2o' &&
+					schema.collections[child.relation.related_collection!]?.primary !== child.fieldKey &&
+					schema.collections[ast.name]?.fields['shadow_' + child.fieldKey]
+				) {
+					nestedCollectionNodes.push(toVersionNode(child));
+				}
 			}
 		}
 
@@ -93,7 +105,7 @@ export function removeTemporaryFields(
 				item[nestedNode.fieldKey] = removeTemporaryFields(
 					schema,
 					item[nestedNode.fieldKey],
-					nestedNode,
+					merge(nestedNode, { query: { version: ast.query.version } }),
 					nestedNode.type === 'm2o'
 						? schema.collections[nestedNode.relation.related_collection!]!.primary
 						: schema.collections[nestedNode.relation.collection]!.primary,
@@ -101,9 +113,38 @@ export function removeTemporaryFields(
 				);
 			}
 
+			// coalesce shadow fields and add version $meta
+			const versionFields = [];
+
+			if (ast.query.version && ast.name.startsWith('shadow_')) {
+				Object.keys(schema.collections[ast.name]!.fields).forEach((field) => {
+					if (item[field] === null && field.startsWith('shadow_') === false) {
+						const relation = schema.relations.find((r) => r.collection === ast.name && r.field === field);
+
+						if (relation && schema.collections[relation.related_collection!]?.primary !== field)
+							item[field] = item['shadow_' + field];
+					}
+				});
+
+				Object.values(VERSION_SYSTEM_FIELDS).forEach(({ field }) => {
+					const metaValue = get(item, field);
+
+					if (metaValue !== undefined) {
+						set(item, ['$meta', field], metaValue);
+					}
+				});
+
+				if ('$meta' in item) {
+					versionFields.push('$meta');
+				}
+			}
+
 			const fieldsWithFunctionsApplied = fields.map((field) => applyFunctionToColumnName(field));
 
-			item = fields.length > 0 ? pick(rawItem, fieldsWithFunctionsApplied, aliasFields) : rawItem[primaryKeyField];
+			item =
+				fields.length > 0
+					? pick(rawItem, fieldsWithFunctionsApplied, aliasFields, versionFields)
+					: rawItem[primaryKeyField];
 
 			items.push(item);
 		}

@@ -11,7 +11,13 @@ import { getCases } from './get-cases.js';
  * @param permissions - Expected to be filtered down for the policies and action already
  */
 export function injectCases(ast: AST, permissions: Permission[]) {
-	ast.cases = processChildren(ast.name, ast.children, permissions);
+	let collection = ast.name;
+
+	if (ast.query.version && collection.startsWith('shadow_')) {
+		collection = collection.replace('shadow_', '');
+	}
+
+	ast.cases = processChildren(collection, ast.children, permissions);
 }
 
 function processChildren(

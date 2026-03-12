@@ -63,7 +63,17 @@ export default function applyQuery(
 	const filter: Filter | null = joinFilterWithCases(query.filter, cases);
 
 	if (filter) {
-		const filterResult = applyFilter(knex, schema, dbQuery, filter, collection, aliasMap, cases, permissions);
+		const filterResult = applyFilter(
+			knex,
+			schema,
+			dbQuery,
+			filter,
+			collection,
+			aliasMap,
+			cases,
+			permissions,
+			Boolean(query.version),
+		);
 
 		if (!hasJoins) {
 			hasJoins = filterResult.hasJoins;

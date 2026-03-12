@@ -11,6 +11,7 @@ export interface ConvertWildcardsOptions {
 	alias: Query['alias'];
 	accountability: Accountability | null;
 	backlink: boolean | undefined;
+	version?: boolean | undefined;
 }
 
 export interface ConvertWildCardsContext {
@@ -21,6 +22,10 @@ export interface ConvertWildCardsContext {
 
 export async function convertWildcards(options: ConvertWildcardsOptions, context: ConvertWildCardsContext) {
 	const fields = cloneDeep(options.fields);
+
+	if (options.version) {
+		options.collection = options.collection.replace('shadow_', '');
+	}
 
 	const fieldsInCollection = Object.entries(context.schema.collections[options.collection]!.fields).map(
 		([name]) => name,

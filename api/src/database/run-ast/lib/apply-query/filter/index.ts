@@ -23,6 +23,7 @@ export function applyFilter(
 	aliasMap: AliasMap,
 	cases: Filter[],
 	permissions: Permission[],
+	version: boolean,
 ) {
 	const relations: Relation[] = schema.relations;
 	let hasJoins = false;
@@ -72,6 +73,7 @@ export function applyFilter(
 					schema,
 					rootQuery,
 					aliasMap,
+					version,
 				});
 
 				if (!hasJoins) {
@@ -203,6 +205,39 @@ export function applyFilter(
 
 				validateOperator(type, filterOperator, special);
 
+				if (
+					relation &&
+					relationType === 'm2o' &&
+					version &&
+					schema.collections[collection]?.fields['shadow_' + relation.field]
+				) {
+					const versionFilterPath = filterPath
+						//Remove the nested PK field if it was injected
+						.slice(0, addNestedPkField ? -1 : undefined)
+						.with(0, 'shadow_' + relation.field);
+
+					const { columnPath: versionColumnPath, targetCollection: versionTargetCollection } = getColumnPath({
+						path: versionFilterPath,
+						collection,
+						relations,
+						aliasMap,
+						schema,
+					});
+
+					if (versionColumnPath) {
+						dbQuery[logical].where((subQuery) => {
+							[
+								{ table: targetCollection, key: columnPath },
+								{ table: versionTargetCollection, key: versionColumnPath },
+							].forEach(({ table, key }) => {
+								applyOperator(knex, subQuery, schema, key, filterOperator, filterValue, 'or', table);
+							});
+						});
+
+						return;
+					}
+				}
+
 				applyOperator(knex, dbQuery, schema, columnPath, filterOperator, filterValue, logical, targetCollection);
 			} else {
 				const { type, special } = getFilterType(schema.collections[collection]!.fields, filterPath[0]!, collection)!;
@@ -210,6 +245,30 @@ export function applyFilter(
 				validateOperator(type, filterOperator, special);
 
 				const aliasedCollection = aliasMap['']?.alias || collection;
+
+				if (
+					relation &&
+					relationType === 'm2o' &&
+					version &&
+					schema.collections[collection]?.fields['shadow_' + relation.field]
+				) {
+					dbQuery[logical].where((subQuery) => {
+						[filterPath[0]!, 'shadow_' + relation.field].forEach((field) => {
+							applyOperator(
+								knex,
+								subQuery,
+								schema,
+								`${aliasedCollection}.${field}`,
+								filterOperator,
+								filterValue,
+								'or',
+								collection,
+							);
+						});
+					});
+
+					return;
+				}
 
 				applyOperator(
 					knex,

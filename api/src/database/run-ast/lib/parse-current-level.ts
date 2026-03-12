@@ -1,4 +1,5 @@
 import type { Query, SchemaOverview } from '@directus/types';
+import { VERSION_SYSTEM_FIELDS } from '../../../services/versions/constants.js';
 import type { FieldNode, FunctionFieldNode, NestedCollectionNode } from '../../../types/ast.js';
 import { parseFilterKey } from '../../../utils/parse-filter-key.js';
 import { parseJsonFunction } from '../../helpers/fn/json/parse-function.js';
@@ -29,6 +30,15 @@ export async function parseCurrentLevel(
 				columnsToSelectInternal.push(child.fieldKey);
 			}
 
+			if (
+				child.type === 'field' &&
+				query.version &&
+				collection.startsWith('shadow_') &&
+				schema.collections[collection]?.fields['shadow_' + child.fieldKey]
+			) {
+				columnsToSelectInternal.push('shadow_' + child.fieldKey);
+			}
+
 			continue;
 		}
 
@@ -36,6 +46,14 @@ export async function parseCurrentLevel(
 
 		if (child.type === 'm2o') {
 			columnsToSelectInternal.push(child.relation.field);
+
+			if (
+				query.version &&
+				collection.startsWith('shadow_') &&
+				schema.collections[collection]?.fields['shadow_' + child.fieldKey]
+			) {
+				columnsToSelectInternal.push('shadow_' + child.relation.field);
+			}
 		}
 
 		if (child.type === 'a2o') {
@@ -44,6 +62,10 @@ export async function parseCurrentLevel(
 		}
 
 		nestedCollectionNodes.push(child);
+	}
+
+	if (query.version && collection.startsWith('shadow_')) {
+		Object.values(VERSION_SYSTEM_FIELDS).forEach((vf) => columnsToSelectInternal.push(vf.field));
 	}
 
 	const isAggregate = (query.group || (query.aggregate && Object.keys(query.aggregate).length > 0)) ?? false;

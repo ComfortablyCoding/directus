@@ -1,9 +1,9 @@
-import type { Field, RawField } from '@directus/types';
+import type { ContentVersion, Field, RawField } from '@directus/types';
 
 // TODO: Rename to directus prefix once shadow tables are supported
 export const VERSION_SYSTEM_FIELDS: Record<
 	'primary' | 'version' | 'user_created' | 'user_updated' | 'date_created' | 'date_updated',
-	RawField | Field
+	(RawField | Field) & { field: keyof ContentVersion<void> }
 > = {
 	primary: {
 		field: 'shadow_id',

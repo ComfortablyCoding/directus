@@ -1,9 +1,9 @@
-import { ErrorCode, InvalidPayloadError, isDirectusError } from '@directus/errors';
+import { ErrorCode, ForbiddenError, isDirectusError } from '@directus/errors';
+import { isSystemCollection } from '@directus/system-data';
 import type { PrimaryKey } from '@directus/types';
 import express from 'express';
-import { assign } from 'lodash-es';
+import collectionExists from '../middleware/collection-exists.js';
 import { respond } from '../middleware/respond.js';
-import useCollection from '../middleware/use-collection.js';
 import { validateBatch } from '../middleware/validate-batch.js';
 import { MetaService } from '../services/meta.js';
 import { VersionsService } from '../services/versions.js';
@@ -12,12 +12,13 @@ import { sanitizeQuery } from '../utils/sanitize-query.js';
 
 const router = express.Router();
 
-router.use(useCollection('directus_versions'));
-
 router.post(
-	'/',
+	'/:collection',
+	collectionExists,
 	asyncHandler(async (req, res, next) => {
-		const service = new VersionsService({
+		if (isSystemCollection(req.params['collection']!)) throw new ForbiddenError();
+
+		const service = new VersionsService(req.collection, {
 			accountability: req.accountability,
 			schema: req.schema,
 		});
@@ -54,7 +55,7 @@ router.post(
 );
 
 const readHandler = asyncHandler(async (req, res, next) => {
-	const service = new VersionsService({
+	const service = new VersionsService(req.collection, {
 		accountability: req.accountability,
 		schema: req.schema,
 	});
@@ -80,13 +81,14 @@ const readHandler = asyncHandler(async (req, res, next) => {
 	return next();
 });
 
-router.get('/', validateBatch('read'), readHandler, respond);
-router.search('/', validateBatch('read'), readHandler, respond);
+router.get('/:collection', collectionExists, validateBatch('read'), readHandler, respond);
+router.search('/:collection', collectionExists, validateBatch('read'), readHandler, respond);
 
 router.get(
-	'/:pk',
+	'/:collection/:pk',
+	collectionExists,
 	asyncHandler(async (req, res, next) => {
-		const service = new VersionsService({
+		const service = new VersionsService(req.collection, {
 			accountability: req.accountability,
 			schema: req.schema,
 		});
@@ -100,10 +102,11 @@ router.get(
 );
 
 router.patch(
-	'/',
+	'/:collection',
+	collectionExists,
 	validateBatch('update'),
 	asyncHandler(async (req, res, next) => {
-		const service = new VersionsService({
+		const service = new VersionsService(req.collection, {
 			accountability: req.accountability,
 			schema: req.schema,
 		});
@@ -136,9 +139,10 @@ router.patch(
 );
 
 router.patch(
-	'/:pk',
+	'/:collection/:pk',
+	collectionExists,
 	asyncHandler(async (req, res, next) => {
-		const service = new VersionsService({
+		const service = new VersionsService(req.collection, {
 			accountability: req.accountability,
 			schema: req.schema,
 		});
@@ -162,10 +166,11 @@ router.patch(
 );
 
 router.delete(
-	'/',
+	'/:collection',
+	collectionExists,
 	validateBatch('delete'),
 	asyncHandler(async (req, _res, next) => {
-		const service = new VersionsService({
+		const service = new VersionsService(req.collection, {
 			accountability: req.accountability,
 			schema: req.schema,
 		});
@@ -185,9 +190,10 @@ router.delete(
 );
 
 router.delete(
-	'/:pk',
+	'/:collection/:pk',
+	collectionExists,
 	asyncHandler(async (req, _res, next) => {
-		const service = new VersionsService({
+		const service = new VersionsService(req.collection, {
 			accountability: req.accountability,
 			schema: req.schema,
 		});
@@ -200,23 +206,18 @@ router.delete(
 );
 
 router.get(
-	'/:pk/compare',
+	'/:collection/:pk/compare',
 	asyncHandler(async (req, res, next) => {
-		const service = new VersionsService({
+		const service = new VersionsService(req.collection, {
 			accountability: req.accountability,
 			schema: req.schema,
 		});
 
 		const version = await service.readOne(req.params['pk']!);
 
-		const { outdated, mainHash } = await service.verifyHash(version['collection'], version['item'], version['hash']);
+		const main = await service.getMainItem(version['collection'], version['id']);
 
-		const delta = version.delta ?? {};
-		delta[req.schema.collections[version.collection]!.primary] = version.item;
-
-		const main = await service.getMainItem(version['collection'], version['item']);
-
-		res.locals['payload'] = { data: { outdated, mainHash, current: delta, main } };
+		res.locals['payload'] = { data: { current: version, main } };
 
 		return next();
 	}),
@@ -224,41 +225,14 @@ router.get(
 );
 
 router.post(
-	'/:pk/save',
+	'/:collection/:pk/promote',
 	asyncHandler(async (req, res, next) => {
-		const service = new VersionsService({
+		const service = new VersionsService(req.collection, {
 			accountability: req.accountability,
 			schema: req.schema,
 		});
 
-		const version = await service.readOne(req.params['pk']!);
-
-		const mainItem = await service.getMainItem(version['collection'], version['item']);
-
-		const updatedVersion = await service.save(req.params['pk']!, req.body);
-
-		const result = assign(mainItem, updatedVersion);
-
-		res.locals['payload'] = { data: result || null };
-
-		return next();
-	}),
-	respond,
-);
-
-router.post(
-	'/:pk/promote',
-	asyncHandler(async (req, res, next) => {
-		if (typeof req.body.mainHash !== 'string') {
-			throw new InvalidPayloadError({ reason: `"mainHash" field is required` });
-		}
-
-		const service = new VersionsService({
-			accountability: req.accountability,
-			schema: req.schema,
-		});
-
-		const updatedItemKey = await service.promote(req.params['pk']!, req.body.mainHash, req.body?.['fields']);
+		const updatedItemKey = await service.promote(req.params['pk']!, { fields: req.body?.['fields'] });
 
 		res.locals['payload'] = { data: updatedItemKey || null };
 

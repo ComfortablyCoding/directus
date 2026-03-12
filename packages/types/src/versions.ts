@@ -1,13 +1,10 @@
-export type ContentVersion = {
-	id: string;
-	key: string;
-	name: string | null;
-	collection: string;
-	item: string;
-	hash: string;
-	date_created: string;
-	date_updated: string | null;
-	user_created: string | null;
-	user_updated: string | null;
-	delta: Record<string, any> | null;
-};
+import type { Item, PrimaryKey } from '@directus/types';
+
+export type ContentVersion<T = Item> = {
+	shadow_id: PrimaryKey;
+	shadow_key: string;
+	shadow_date_created: string;
+	shadow_date_updated: string | null;
+	shadow_user_created: string | null;
+	shadow_user_updated: string | null;
+} & T;

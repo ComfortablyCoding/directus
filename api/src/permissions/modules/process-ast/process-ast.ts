@@ -1,4 +1,5 @@
 import type { Accountability, PermissionsAction } from '@directus/types';
+import { VERSION_SYSTEM_FIELDS } from '../../../services/versions/constants.js';
 import type { AST } from '../../../types/ast.js';
 import { fetchPermissions } from '../../lib/fetch-permissions.js';
 import { fetchPolicies } from '../../lib/fetch-policies.js';
@@ -60,32 +61,55 @@ export async function processAst(options: ProcessAstOptions, context: Context) {
 	}
 
 	// Validate permissions for the fields
-	for (const [path, { collection, fields }] of fieldMap.other.entries()) {
-		if (options.action === 'read' && options.ast.query.version && collection.startsWith('shadow_')) {
-			// check read access to main + fields
-			validatePathPermissions(path, permissions, collection.replace('shadow_', ''), fields);
+	for (const [path, context] of fieldMap.other.entries()) {
+		let collection = context.collection;
+		const fields = context.fields;
 
-			// check read access to shadow collection
-			validatePathPermissions(path, readPermissions, collection, new Set());
+		if (options.ast.query.version && collection.startsWith('shadow_')) {
+			// check "action" is allowed to version collection
+			validatePathPermissions(path, permissions, collection, new Set());
+
+			// check permissions against main table, convert any version duplicates to main table equivalent
+			collection = collection.replace('shadow_', '');
+
+			context.fields.forEach((field) => {
+				if (field.startsWith('shadow_') && !Object.values(VERSION_SYSTEM_FIELDS).find((f) => f.field === field)) {
+					fields.add(field.replace('shadow_', ''));
+				}
+			});
+
+			// always enforce read permissions from main table
+			validatePathPermissions(path, readPermissions, collection, fields);
 		} else {
 			validatePathPermissions(path, permissions, collection, fields);
 		}
 	}
 
 	// Validate permission for read only fields
-	for (const [path, { collection, fields }] of fieldMap.read.entries()) {
-		if (options.action === 'read' && options.ast.query.version && collection.startsWith('shadow_')) {
-			// check read access to main + fields
-			validatePathPermissions(path, readPermissions, collection.replace('shadow_', ''), fields);
+	for (const [path, context] of fieldMap.read.entries()) {
+		let collection = context.collection;
+		const fields = context.fields;
 
-			// check read access to shadow collection
+		if (options.ast.query.version && collection.startsWith('shadow_')) {
+			// check read is allowed to version collection
 			validatePathPermissions(path, readPermissions, collection, new Set());
-		} else {
-			validatePathPermissions(path, readPermissions, collection, fields);
+
+			// check permissions against main table, convert any version duplicates to main table equivalent
+			collection = collection.replace('shadow_', '');
+
+			context.fields.forEach((field) => {
+				if (field.startsWith('shadow_') && !Object.values(VERSION_SYSTEM_FIELDS).find((f) => f.field === field)) {
+					fields.add(field.replace('shadow_', ''));
+				}
+			});
 		}
+
+		validatePathPermissions(path, readPermissions, collection, fields);
 	}
 
-	injectCases(options.ast, permissions);
+	if (options.ast.name.startsWith('shadow_') === false || options.action === 'read') {
+		injectCases(options.ast, permissions);
+	}
 
 	return options.ast;
 }

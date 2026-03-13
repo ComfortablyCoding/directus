@@ -11,13 +11,7 @@ import { getCases } from './get-cases.js';
  * @param permissions - Expected to be filtered down for the policies and action already
  */
 export function injectCases(ast: AST, permissions: Permission[]) {
-	let collection = ast.name;
-
-	if (ast.query.version && collection.startsWith('shadow_')) {
-		collection = collection.replace('shadow_', '');
-	}
-
-	ast.cases = processChildren(collection, ast.children, permissions);
+	ast.cases = processChildren(ast.name, ast.children, permissions);
 }
 
 function processChildren(
@@ -25,6 +19,10 @@ function processChildren(
 	children: (NestedCollectionNode | FieldNode | FunctionFieldNode)[],
 	permissions: Permission[],
 ) {
+	if (collection.startsWith('shadow_')) {
+		collection = collection.replace('shadow_', '');
+	}
+
 	// Use uniq here, since there might be multiple duplications due to aliases or functions
 	const requestedKeys = uniq(children.map(getUnaliasedFieldKey));
 	const { cases, caseMap, allowedFields } = getCases(collection, permissions, requestedKeys);

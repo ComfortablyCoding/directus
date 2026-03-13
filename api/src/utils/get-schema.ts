@@ -125,13 +125,9 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 
 	const schemaOverview = await schemaInspector.overview();
 
-	const collections: Pick<
-		CollectionMeta,
-		'collection' | 'singleton' | 'note' | 'sort_field' | 'accountability' | 'versioned_by' | 'version_of'
-	>[] = [
-		...(await database
-			.select('collection', 'singleton', 'note', 'sort_field', 'accountability', 'versioned_by', 'version_of')
-			.from('directus_collections')),
+	const collections: CollectionMeta[] = [
+		// '*' to prevent `getSchema` erroring on migration for attempting to select future fields
+		...(await database.select('*').from('directus_collections')),
 		...systemCollectionRows,
 	];
 

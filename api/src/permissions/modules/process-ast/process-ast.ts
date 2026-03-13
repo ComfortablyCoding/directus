@@ -63,7 +63,7 @@ export async function processAst(options: ProcessAstOptions, context: Context) {
 	// Validate permissions for the fields
 	for (const [path, context] of fieldMap.other.entries()) {
 		let collection = context.collection;
-		const fields = context.fields;
+		let fields = context.fields;
 
 		if (options.ast.query.version && collection.startsWith('shadow_')) {
 			// check "action" is allowed to version collection
@@ -72,11 +72,18 @@ export async function processAst(options: ProcessAstOptions, context: Context) {
 			// check permissions against main table, convert any version duplicates to main table equivalent
 			collection = collection.replace('shadow_', '');
 
+			const versionFields = new Set<string>();
+
 			context.fields.forEach((field) => {
-				if (field.startsWith('shadow_') && !Object.values(VERSION_SYSTEM_FIELDS).find((f) => f.field === field)) {
-					fields.add(field.replace('shadow_', ''));
+				if (
+					field.startsWith('shadow_') === false ||
+					(field.startsWith('shadow_') && !Object.values(VERSION_SYSTEM_FIELDS).find((f) => f.field === field))
+				) {
+					versionFields.add(field.replace('shadow_', ''));
 				}
 			});
+
+			fields = versionFields;
 
 			// always enforce read permissions from main table
 			validatePathPermissions(path, readPermissions, collection, fields);
@@ -88,7 +95,7 @@ export async function processAst(options: ProcessAstOptions, context: Context) {
 	// Validate permission for read only fields
 	for (const [path, context] of fieldMap.read.entries()) {
 		let collection = context.collection;
-		const fields = context.fields;
+		let fields = context.fields;
 
 		if (options.ast.query.version && collection.startsWith('shadow_')) {
 			// check read is allowed to version collection
@@ -97,17 +104,21 @@ export async function processAst(options: ProcessAstOptions, context: Context) {
 			// check permissions against main table, convert any version duplicates to main table equivalent
 			collection = collection.replace('shadow_', '');
 
+			const versionFields = new Set<string>();
+
 			context.fields.forEach((field) => {
 				if (field.startsWith('shadow_') && !Object.values(VERSION_SYSTEM_FIELDS).find((f) => f.field === field)) {
 					fields.add(field.replace('shadow_', ''));
 				}
 			});
+
+			fields = versionFields;
 		}
 
 		validatePathPermissions(path, readPermissions, collection, fields);
 	}
 
-	if (options.ast.name.startsWith('shadow_') === false || options.action === 'read') {
+	if (options.ast.name.startsWith('shadow_') === false) {
 		injectCases(options.ast, permissions);
 	}
 

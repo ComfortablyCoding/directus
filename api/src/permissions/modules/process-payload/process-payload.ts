@@ -2,6 +2,7 @@ import type { Accountability, Filter, Item, PermissionsAction } from '@directus/
 import { parseFilter, validatePayload } from '@directus/utils';
 import { FailedValidationError, joiValidationErrorItemToErrorExtensions } from '@directus/validation';
 import { assign, difference, uniq } from 'lodash-es';
+import { VERSION_SYSTEM_FIELDS } from '../../../services/versions/constants.js';
 import { fetchPermissions } from '../../lib/fetch-permissions.js';
 import { fetchPolicies } from '../../lib/fetch-policies.js';
 import type { Context } from '../../types.js';
@@ -35,23 +36,62 @@ export async function processPayload(options: ProcessPayloadOptions, context: Co
 	if (!options.accountability.admin) {
 		policies = await fetchPolicies(options.accountability, context);
 
+		const versionOf = context.schema.collections[options.collection]?.versionOf;
+
 		permissions = await fetchPermissions(
-			{ action: options.action, policies, collections: [options.collection], accountability: options.accountability },
+			{
+				action: versionOf ? 'read' : options.action,
+				policies,
+				collections: [versionOf || options.collection],
+				accountability: options.accountability,
+			},
 			context,
 		);
 
 		if (permissions.length === 0) {
-			throw createCollectionForbiddenError('', options.collection);
+			throw createCollectionForbiddenError('', versionOf || options.collection);
+		}
+
+		if (versionOf) {
+			const versionPermissions = await fetchPermissions(
+				{
+					action: options.action,
+					policies,
+					collections: [options.collection],
+					accountability: options.accountability,
+				},
+				context,
+			);
+
+			if (versionPermissions.length === 0) {
+				throw createCollectionForbiddenError('', versionOf);
+			}
 		}
 
 		const fieldsAllowed = uniq(permissions.map(({ fields }) => fields ?? []).flat());
 
 		if (fieldsAllowed.includes('*') === false) {
-			const fieldsUsed = Object.keys(options.payload);
+			let fieldsUsed = Object.keys(options.payload);
+
+			if (versionOf) {
+				const versionFieldsUser = new Set<string>();
+
+				fieldsUsed.forEach((field) => {
+					if (
+						field.startsWith('shadow_') === false ||
+						(field.startsWith('shadow_') && !Object.values(VERSION_SYSTEM_FIELDS).find((f) => f.field === field))
+					) {
+						versionFieldsUser.add(field.replace('shadow_', ''));
+					}
+				});
+
+				fieldsUsed = Array.from(versionFieldsUser);
+			}
+
 			const notAllowed = difference(fieldsUsed, fieldsAllowed);
 
 			if (notAllowed.length > 0) {
-				throw createFieldsForbiddenError('', options.collection, notAllowed);
+				throw createFieldsForbiddenError('', versionOf || options.collection, notAllowed);
 			}
 		}
 

@@ -283,7 +283,7 @@ export class VersionsService extends ItemsService<ContentVersion> {
 
 		const itemLess = isNil(data['item']);
 
-		if (itemLess && data['key'] !== 'draft') {
+		if (itemLess && data['shadow_key'] !== 'draft') {
 			throw new InvalidPayloadError({ reason: `"key" must be 'draft' for versions not linked to an item` });
 		}
 

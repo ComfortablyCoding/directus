@@ -18,7 +18,8 @@ export type CollectionMeta = {
 	translations: Translations[] | null;
 	display_template: string | null;
 	preview_url: string | null;
-	versioning: boolean;
+	versioned_by: string | null;
+	version_of: string | null;
 	sort_field: string | null;
 	archive_field: string | null;
 	archive_value: string | null;
@@ -55,7 +56,8 @@ export type BaseCollectionMeta = Pick<
 	| 'singleton'
 	| 'icon'
 	| 'translations'
-	| 'versioning'
+	| 'versioned_by'
+	| 'version_of'
 	| 'item_duplication_fields'
 	| 'accountability'
 	| 'group'

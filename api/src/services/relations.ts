@@ -29,6 +29,7 @@ import { getDefaultIndexName } from '../utils/get-default-index-name.js';
 import { getSchema } from '../utils/get-schema.js';
 import { transaction } from '../utils/transaction.js';
 import { ItemsService } from './items.js';
+import { VersionsService } from './versions.js';
 
 const env = useEnv();
 
@@ -285,6 +286,13 @@ export class RelationsService {
 					bypassEmitAction: (params) =>
 						opts?.bypassEmitAction ? opts.bypassEmitAction(params) : nestedActionEvents.push(params),
 				});
+
+				if (relation.collection && this.schema.collections[relation.collection]?.versionedBy) {
+					const versionsService = new VersionsService(relation.collection, { knex: trx, schema: this.schema });
+
+					// create relatiion for current field
+					await versionsService.createRelation(relation);
+				}
 			});
 		} finally {
 			if (runPostColumnChange) {
@@ -296,7 +304,7 @@ export class RelationsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -412,6 +420,13 @@ export class RelationsService {
 						);
 					}
 				}
+
+				if (relation.collection && this.schema.collections[relation.collection]?.versionedBy) {
+					const versionsService = new VersionsService(relation.collection, { knex: trx, schema: this.schema });
+
+					// update relation for current field
+					await versionsService.updateRelation(relation);
+				}
 			});
 		} finally {
 			if (runPostColumnChange) {
@@ -423,7 +438,7 @@ export class RelationsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -498,6 +513,11 @@ export class RelationsService {
 				} else {
 					nestedActionEvents.push(actionEvent);
 				}
+
+				if (this.schema.collections[collection]?.versionedBy) {
+					const versionsService = new VersionsService(collection, { knex: trx, schema: this.schema });
+					await versionsService.deleteRelation(collection, field);
+				}
 			});
 		} finally {
 			if (runPostColumnChange) {
@@ -509,7 +529,7 @@ export class RelationsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;

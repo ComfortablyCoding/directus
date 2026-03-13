@@ -49,6 +49,7 @@ import { getCollectionRelationList } from './fields/get-collection-relation-list
 import { ItemsService } from './items.js';
 import { PayloadService } from './payload.js';
 import { RelationsService } from './relations.js';
+import { VersionsService } from './versions.js';
 
 const systemFieldRows = getSystemFieldRowsWithAuthProviders();
 const env = useEnv();
@@ -468,6 +469,11 @@ export class FieldsService {
 				} else {
 					nestedActionEvents.push(actionEvent);
 				}
+
+				if (this.schema.collections[collection]?.versionedBy) {
+					const versionsService = new VersionsService(collection, { knex: trx, schema: this.schema });
+					await versionsService.createField(field);
+				}
 			});
 
 			// concurrent index creation cannot be done inside the transaction
@@ -515,122 +521,129 @@ export class FieldsService {
 		}
 
 		try {
-			const hookAdjustedField =
-				opts?.emitEvents !== false
-					? await emitter.emitFilter(
-							`fields.update`,
-							field,
-							{
-								keys: [field.field],
-								collection: collection,
-							},
-							{
-								database: this.knex,
-								schema: this.schema,
-								accountability: this.accountability,
-							},
-						)
-					: field;
+			return await transaction(this.knex, async (trx) => {
+				const hookAdjustedField =
+					opts?.emitEvents !== false
+						? await emitter.emitFilter(
+								`fields.update`,
+								field,
+								{
+									keys: [field.field],
+									collection: collection,
+								},
+								{
+									database: trx,
+									schema: this.schema,
+									accountability: this.accountability,
+								},
+							)
+						: field;
 
-			const record = field.meta
-				? await this.knex.select('id').from('directus_fields').where({ collection, field: field.field }).first()
-				: null;
+				const record = field.meta
+					? await trx.select('id').from('directus_fields').where({ collection, field: field.field }).first()
+					: null;
 
-			if (
-				hookAdjustedField.type &&
-				(hookAdjustedField.type === 'alias' ||
-					this.schema.collections[collection]!.fields[field.field]?.type === 'alias') &&
-				hookAdjustedField.type !== (this.schema.collections[collection]!.fields[field.field]?.type ?? 'alias')
-			) {
-				throw new InvalidPayloadError({ reason: 'Alias type cannot be changed' });
-			}
-
-			if (hookAdjustedField.schema) {
-				const existingColumn = await this.columnInfo(collection, hookAdjustedField.field);
-
-				if (existingColumn.is_primary_key) {
-					if (hookAdjustedField.schema?.is_nullable === true) {
-						throw new InvalidPayloadError({ reason: 'Primary key cannot be null' });
-					}
+				if (
+					hookAdjustedField.type &&
+					(hookAdjustedField.type === 'alias' ||
+						this.schema.collections[collection]!.fields[field.field]?.type === 'alias') &&
+					hookAdjustedField.type !== (this.schema.collections[collection]!.fields[field.field]?.type ?? 'alias')
+				) {
+					throw new InvalidPayloadError({ reason: 'Alias type cannot be changed' });
 				}
 
-				// Sanitize column only when applying snapshot diff as opts is only passed from /utils/apply-diff.ts
-				const columnToCompare =
-					opts?.bypassLimits && opts.autoPurgeSystemCache === false ? sanitizeColumn(existingColumn) : existingColumn;
+				if (hookAdjustedField.schema) {
+					const existingColumn = await this.columnInfo(collection, hookAdjustedField.field);
 
-				if (!isEqual(columnToCompare, hookAdjustedField.schema)) {
-					try {
-						const attemptConcurrentIndex = Boolean(opts?.attemptConcurrentIndex);
+					if (existingColumn.is_primary_key) {
+						if (hookAdjustedField.schema?.is_nullable === true) {
+							throw new InvalidPayloadError({ reason: 'Primary key cannot be null' });
+						}
+					}
 
-						await transaction(this.knex, async (trx) => {
-							await trx.schema.alterTable(collection, (table) => {
-								if (!hookAdjustedField.schema) return;
+					// Sanitize column only when applying snapshot diff as opts is only passed from /utils/apply-diff.ts
+					const columnToCompare =
+						opts?.bypassLimits && opts.autoPurgeSystemCache === false ? sanitizeColumn(existingColumn) : existingColumn;
 
-								this.addColumnToTable(table, collection, field, {
+					if (!isEqual(columnToCompare, hookAdjustedField.schema)) {
+						try {
+							const attemptConcurrentIndex = Boolean(opts?.attemptConcurrentIndex);
+
+							await transaction(trx, async (trx) => {
+								await trx.schema.alterTable(collection, (table) => {
+									if (!hookAdjustedField.schema) return;
+
+									this.addColumnToTable(table, collection, field, {
+										existing: existingColumn,
+										attemptConcurrentIndex,
+									});
+								});
+							});
+
+							// concurrent index creation cannot be done inside the transaction
+							if (attemptConcurrentIndex) {
+								await this.addColumnIndex(collection, field, {
 									existing: existingColumn,
 									attemptConcurrentIndex,
 								});
-							});
-						});
-
-						// concurrent index creation cannot be done inside the transaction
-						if (attemptConcurrentIndex) {
-							await this.addColumnIndex(collection, field, {
-								existing: existingColumn,
-								attemptConcurrentIndex,
-							});
+							}
+						} catch (err: any) {
+							throw await translateDatabaseError(err, field);
 						}
-					} catch (err: any) {
-						throw await translateDatabaseError(err, field);
 					}
 				}
-			}
 
-			// Only create/update a database record if this is not a system field
-			if (hookAdjustedField.meta && !isSystemField(collection, hookAdjustedField.field)) {
-				if (record) {
-					await this.itemsService.updateOne(
-						record.id,
-						{
-							...hookAdjustedField.meta,
-							collection: collection,
-							field: hookAdjustedField.field,
-						},
-						{ emitEvents: false },
-					);
-				} else {
-					await this.itemsService.createOne(
-						{
-							...hookAdjustedField.meta,
-							collection: collection,
-							field: hookAdjustedField.field,
-						},
-						{ emitEvents: false },
-					);
+				// Only create/update a database record if this is not a system field
+				if (hookAdjustedField.meta && !isSystemField(collection, hookAdjustedField.field)) {
+					if (record) {
+						await this.itemsService.updateOne(
+							record.id,
+							{
+								...hookAdjustedField.meta,
+								collection: collection,
+								field: hookAdjustedField.field,
+							},
+							{ emitEvents: false },
+						);
+					} else {
+						await this.itemsService.createOne(
+							{
+								...hookAdjustedField.meta,
+								collection: collection,
+								field: hookAdjustedField.field,
+							},
+							{ emitEvents: false },
+						);
+					}
 				}
-			}
 
-			const actionEvent = {
-				event: 'fields.update',
-				meta: {
-					payload: hookAdjustedField,
-					keys: [hookAdjustedField.field],
-					collection: collection,
-				},
-				context: {
-					database: getDatabase(),
-					schema: this.schema,
-					accountability: this.accountability,
-				},
-			};
+				const actionEvent = {
+					event: 'fields.update',
+					meta: {
+						payload: hookAdjustedField,
+						keys: [hookAdjustedField.field],
+						collection: collection,
+					},
+					context: {
+						database: getDatabase(),
+						schema: this.schema,
+						accountability: this.accountability,
+					},
+				};
 
-			if (opts?.bypassEmitAction) {
-				opts.bypassEmitAction(actionEvent);
-			} else {
-				nestedActionEvents.push(actionEvent);
-			}
+				if (opts?.bypassEmitAction) {
+					opts.bypassEmitAction(actionEvent);
+				} else {
+					nestedActionEvents.push(actionEvent);
+				}
 
-			return field.field;
+				if (this.schema.collections[collection]?.versionedBy) {
+					const versionsService = new VersionsService(collection, { knex: trx, schema: this.schema });
+					await versionsService.updateField(field);
+				}
+
+				return field.field;
+			});
 		} finally {
 			if (runPostColumnChange) {
 				await this.helpers.schema.postColumnChange();
@@ -857,6 +870,11 @@ export class FieldsService {
 							.update('fields', newFields.length > 0 ? newFields : null)
 							.where('id', '=', permissionRow['id']);
 					}
+				}
+
+				if (this.schema.collections[collection]?.versionedBy) {
+					const versionsService = new VersionsService(collection, { knex: trx, schema: this.schema });
+					await versionsService.deleteField(field);
 				}
 			});
 

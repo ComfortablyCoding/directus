@@ -2,7 +2,7 @@ import { useEnv } from '@directus/env';
 import type { SchemaInspector } from '@directus/schema';
 import { createInspector } from '@directus/schema';
 import { systemCollectionRows } from '@directus/system-data';
-import type { Filter, SchemaOverview } from '@directus/types';
+import type { CollectionMeta, Filter, SchemaOverview } from '@directus/types';
 import { parseJSON, toArray, toBoolean } from '@directus/utils';
 import type { Knex } from 'knex';
 import { mapValues } from 'lodash-es';
@@ -125,9 +125,12 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 
 	const schemaOverview = await schemaInspector.overview();
 
-	const collections = [
+	const collections: Pick<
+		CollectionMeta,
+		'collection' | 'singleton' | 'note' | 'sort_field' | 'accountability' | 'versioned_by' | 'version_of'
+	>[] = [
 		...(await database
-			.select('collection', 'singleton', 'note', 'sort_field', 'accountability', 'versioning')
+			.select('collection', 'singleton', 'note', 'sort_field', 'accountability', 'versioned_by', 'version_of')
 			.from('directus_collections')),
 		...systemCollectionRows,
 	];
@@ -154,7 +157,8 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 			collection,
 			primary: info.primary,
 			singleton: toBoolean(collectionMeta?.singleton),
-			versioned: toBoolean(collectionMeta?.versioning),
+			versionedBy: collectionMeta?.versioned_by || null,
+			versionOf: collectionMeta?.version_of || null,
 			note: collectionMeta?.note || null,
 			sortField: collectionMeta?.sort_field || null,
 			accountability: collectionMeta ? collectionMeta.accountability : 'all',

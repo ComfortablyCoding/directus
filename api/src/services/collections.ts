@@ -7,6 +7,7 @@ import type {
 	AbstractServiceOptions,
 	Accountability,
 	ActionEventParams,
+	CollectionMeta,
 	FieldMeta,
 	FieldMutationOptions,
 	MutationOptions,
@@ -35,6 +36,7 @@ import { getCollectionMetaUpdates } from './fields/get-collection-meta-updates.j
 import { getCollectionRelationList } from './fields/get-collection-relation-list.js';
 import { FieldsService } from './fields.js';
 import { ItemsService } from './items.js';
+import { VersionsService } from './versions.js';
 
 export class CollectionsService {
 	knex: Knex;
@@ -218,6 +220,11 @@ export class CollectionsService {
 					);
 				}
 
+				if (payload.meta?.versioned_by && payload.schema) {
+					const versionsService = new VersionsService(payload.collection, { schema: this.schema, knex: trx });
+					await versionsService.createTable(payload);
+				}
+
 				return payload.collection;
 			});
 
@@ -245,7 +252,7 @@ export class CollectionsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -444,41 +451,67 @@ export class CollectionsService {
 
 		const nestedActionEvents: ActionEventParams[] = [];
 
+		const payload = data as Partial<Collection>;
+
+		if (!payload.meta) {
+			return collectionKey;
+		}
+
 		try {
-			const collectionsItemsService = new ItemsService('directus_collections', {
-				knex: this.knex,
-				accountability: this.accountability,
-				schema: this.schema,
-			});
-
-			const payload = data as Partial<Collection>;
-
-			if (!payload.meta) {
-				return collectionKey;
-			}
-
-			const exists = !!(await this.knex
-				.select('collection')
-				.from('directus_collections')
-				.where({ collection: collectionKey })
-				.first());
-
-			if (exists) {
-				await collectionsItemsService.updateOne(collectionKey, payload.meta, {
-					...opts,
-					bypassEmitAction: (params) =>
-						opts?.bypassEmitAction ? opts.bypassEmitAction(params) : nestedActionEvents.push(params),
+			await transaction(this.knex, async (trx) => {
+				const collectionsItemsService = new ItemsService('directus_collections', {
+					knex: trx,
+					accountability: this.accountability,
+					schema: this.schema,
 				});
-			} else {
-				await collectionsItemsService.createOne(
-					{ ...payload.meta, collection: collectionKey },
-					{
+
+				const exists: Pick<CollectionMeta, 'collection' | 'versioned_by'> = await trx
+					.select('collection', 'versioned_by')
+					.from('directus_collections')
+					.where({ collection: collectionKey })
+					.first();
+
+				if (exists) {
+					await collectionsItemsService.updateOne(collectionKey, payload.meta!, {
 						...opts,
 						bypassEmitAction: (params) =>
 							opts?.bypassEmitAction ? opts.bypassEmitAction(params) : nestedActionEvents.push(params),
-					},
-				);
-			}
+					});
+				} else {
+					await collectionsItemsService.createOne(
+						{ ...payload.meta, collection: collectionKey },
+						{
+							...opts,
+							bypassEmitAction: (params) =>
+								opts?.bypassEmitAction ? opts.bypassEmitAction(params) : nestedActionEvents.push(params),
+						},
+					);
+				}
+
+				if ((payload.meta && 'versioned_by' in payload.meta) || exists.versioned_by) {
+					const versionsService = new VersionsService(collectionKey, { knex: trx, schema: this.schema });
+
+					if (payload.meta?.versioned_by) {
+						if (!exists || exists.versioned_by === null) {
+							const fieldsService = new FieldsService({ knex: trx, schema: this.schema });
+							const fields = await fieldsService.readAll(collectionKey);
+
+							await versionsService.createTable({
+								collection: collectionKey,
+								fields: fields.filter((f) => f.meta !== null),
+								schema: {},
+								meta: payload.meta,
+							});
+						}
+					} else if (exists.versioned_by) {
+						if (payload.meta?.versioned_by === null) {
+							await versionsService.dropTable();
+						} else {
+							await versionsService.updateTable(data);
+						}
+					}
+				}
+			});
 
 			return collectionKey;
 		} finally {
@@ -491,7 +524,7 @@ export class CollectionsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -771,6 +804,11 @@ export class CollectionsService {
 							.where({ id: relation.meta!.id });
 					}
 				}
+
+				if (collectionToBeDeleted.meta?.versioned_by) {
+					const versionsService = new VersionsService(collectionKey, { knex: trx, schema: this.schema });
+					await versionsService.dropTable();
+				}
 			});
 
 			return collectionKey;
@@ -784,7 +822,7 @@ export class CollectionsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;

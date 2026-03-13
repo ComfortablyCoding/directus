@@ -63,10 +63,13 @@ export class VersionsService extends ItemsService<ContentVersion> {
 			throw new InvalidPayloadError({ reason: 'Input should be an array of items' });
 		}
 
+		const pkField = this.schema.collections[this.collection.replace('shadow_', '')]!.primary;
 		const keyCombos = new Set();
 
 		for (const item of data) {
-			const keyCombo = `${item['key']}-${this.collection}-${item['item']}`;
+			const keyCombo = `${item['shadow_key']}-${this.collection}-${item[pkField]}`;
+
+			if (isNil(item[pkField])) continue;
 
 			if (keyCombos.has(keyCombo)) {
 				throw new UnprocessableContentError({

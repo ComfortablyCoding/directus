@@ -493,7 +493,7 @@ export class ItemsService<Item extends AnyItem = AnyItem, Collection extends str
 	 * Get items by query.
 	 */
 	async readByQuery(query: Query, opts?: QueryOptions): Promise<Item[]> {
-		if (query.version && this.schema.collections[this.collection]?.versioned) {
+		if (query.version && this.schema.collections[this.collection]?.versionedBy) {
 			const versionItemsService = new ItemsService<Item>('shadow_' + this.collection, {
 				accountability: this.accountability,
 				knex: this.knex,

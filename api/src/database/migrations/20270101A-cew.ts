@@ -15,6 +15,10 @@ export async function up(knex: Knex): Promise<void> {
 		table.string('versioned_by');
 		table.string('version_of');
 	});
+
+	await knex.schema.alterTable('directus_revisions', (table) => {
+		table.dropColumn('version');
+	});
 }
 
 export async function down(knex: Knex): Promise<void> {
@@ -56,5 +60,9 @@ export async function down(knex: Knex): Promise<void> {
 
 	await knex.schema.alterTable('directus_collections', (table) => {
 		table.boolean('versioning').notNullable().defaultTo(false);
+	});
+
+	await knex.schema.alterTable('directus_revisions', (table) => {
+		table.uuid('version').references('id').inTable('directus_versions').onDelete('CASCADE');
 	});
 }

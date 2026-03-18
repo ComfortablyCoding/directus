@@ -204,6 +204,11 @@ export class VersionsService extends ItemsService<ContentVersion> {
 		});
 
 		await relationsService.createOne(versionDuplicatePayload);
+
+		// Set versioned_by on the main field pointing to its shadow duplicate
+		await this.knex('directus_fields')
+			.where({ collection: this.collection, field: relation.field })
+			.update({ versioned_by: toVersionedRelationName(relation.field!) });
 	}
 
 	async updateTable(data: Partial<Collection>) {
@@ -331,7 +336,7 @@ export class VersionsService extends ItemsService<ContentVersion> {
 
 			if (keyCombos.has(keyCombo)) {
 				throw new UnprocessableContentError({
-					reason: `Cannot create multiple versions on "${item['item']}" in collection "${item['collection']}" with the same key "${item['key']}"`,
+					reason: `Cannot create multiple versions on "${item[pkField]}" in collection "${this.collection}" with the same key "${item['shadow_key']}"`,
 				});
 			}
 
@@ -384,7 +389,7 @@ export class VersionsService extends ItemsService<ContentVersion> {
 
 				if (existingVersions[0]!['count'] > 0) {
 					throw new UnprocessableContentError({
-						reason: `Version "${data['key']}" already exists for item "${item}" in collection "${this.collection}"`,
+						reason: `Version "${key}" already exists for item "${item}" in collection "${this.collection}"`,
 					});
 				}
 			}

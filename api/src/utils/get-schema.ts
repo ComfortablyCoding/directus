@@ -5,7 +5,7 @@ import { systemCollectionRows } from '@directus/system-data';
 import type { CollectionMeta, Filter, SchemaOverview } from '@directus/types';
 import { parseJSON, toArray, toBoolean } from '@directus/utils';
 import type { Knex } from 'knex';
-import { mapValues } from 'lodash-es';
+import { mapValues, pick } from 'lodash-es';
 import { useBus } from '../bus/index.js';
 import { getMemorySchemaCache, setMemorySchemaCache } from '../cache.js';
 import { ALIAS_TYPES } from '../constants.js';
@@ -125,9 +125,23 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 
 	const schemaOverview = await schemaInspector.overview();
 
+	const collectionColumns = Object.keys(schemaOverview['directus_collections']?.columns ?? {});
+
+	const collectionColumnsToSelect =
+		collectionColumns.length === 0
+			? ['*']
+			: (pick(collectionColumns, [
+					'collection',
+					'singleton',
+					'note',
+					'sort_field',
+					'accountability',
+					'versioned_by',
+					'version_of',
+				]) as string[]);
+
 	const collections: CollectionMeta[] = [
-		// '*' to prevent `getSchema` erroring on migration for attempting to select future fields
-		...(await database.select('*').from('directus_collections')),
+		...(await database.select(...collectionColumnsToSelect).from('directus_collections')),
 		...systemCollectionRows,
 	];
 
@@ -173,10 +187,30 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 					validation: null,
 					alias: false,
 					searchable: true,
+					versionedBy: null,
+					versionOf: null,
 				};
 			}),
 		};
 	}
+
+	// Select only columns that exist in the current schema
+	const fieldColumns = Object.keys(schemaOverview['directus_fields']?.columns ?? {});
+
+	const fieldColumnsToSelect =
+		fieldColumns.length === 0
+			? ['*']
+			: (pick(fieldColumns, [
+					'id',
+					'collection',
+					'field',
+					'special',
+					'note',
+					'validation',
+					'searchable',
+					'versioned_by',
+					'version_of',
+				]) as string[]);
 
 	const fields = [
 		...(await database
@@ -189,8 +223,10 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 					note: string | null;
 					validation: string | Record<string, any> | null;
 					searchable: boolean;
+					versioned_by?: string | null;
+					version_of?: string | null;
 				}[]
-			>('id', 'collection', 'field', 'special', 'note', 'validation', 'searchable')
+			>(...fieldColumnsToSelect)
 			.from('directus_fields')),
 		...systemFieldRows,
 	].filter((field) => (field.special ? toArray(field.special) : []).includes('no-data') === false);
@@ -223,6 +259,8 @@ async function getDatabaseSchema(database: Knex, schemaInspector: SchemaInspecto
 			alias: existing?.alias ?? true,
 			validation: (validation as Filter) ?? null,
 			searchable: toBoolean(field.searchable) ?? true,
+			versionedBy: field.versioned_by || null,
+			versionOf: field.version_of || null,
 		};
 	}
 

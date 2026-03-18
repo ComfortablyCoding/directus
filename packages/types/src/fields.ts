@@ -54,6 +54,8 @@ export type FieldMeta = {
 	validation: Filter | null;
 	validation_message: string | null;
 	searchable: boolean;
+	versioned_by: string | null;
+	version_of: string | null;
 	system?: true;
 	clear_hidden_value_on_save?: boolean;
 };

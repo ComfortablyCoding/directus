@@ -35,6 +35,12 @@ import { getCollectionMetaUpdates } from './fields/get-collection-meta-updates.j
 import { getCollectionRelationList } from './fields/get-collection-relation-list.js';
 import { FieldsService } from './fields.js';
 import { ItemsService } from './items.js';
+import { RelationsService } from './relations.js';
+import { hasVersionTable } from './versions/has-version-table.js';
+import { toVersionCollection } from './versions/to-version-collection.js';
+import { toVersionField } from './versions/to-version-field.js';
+import { toVersionName } from './versions/to-version-name.js';
+import { toVersionRelation } from './versions/to-version-relation.js';
 
 export class CollectionsService {
 	knex: Knex;
@@ -71,7 +77,7 @@ export class CollectionsService {
 			throw new InvalidPayloadError({ reason: `"collection" must be a non-empty string` });
 		}
 
-		if (payload.collection.startsWith('directus_')) {
+		if (payload.collection.startsWith('directus_') && !payload.collection.startsWith('directus_versions_')) {
 			throw new InvalidPayloadError({ reason: `Collections can't start with "directus_"` });
 		}
 
@@ -218,6 +224,17 @@ export class CollectionsService {
 					);
 				}
 
+				/**
+				 * Versioning sync — create version table when collection has versioning enabled.
+				 * Inside the same transaction so both tables are created atomically.
+				 *
+				 * Note: version tables have versioning=false so this does not recurse.
+				 */
+				if (payload.meta?.versioning && payload.schema) {
+					const collectionsService = new CollectionsService({ knex: trx, schema: this.schema });
+					await collectionsService.createOne(toVersionCollection(payload));
+				}
+
 				return payload.collection;
 			});
 
@@ -245,7 +262,7 @@ export class CollectionsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -296,7 +313,7 @@ export class CollectionsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -445,40 +462,174 @@ export class CollectionsService {
 		const nestedActionEvents: ActionEventParams[] = [];
 
 		try {
-			const collectionsItemsService = new ItemsService('directus_collections', {
-				knex: this.knex,
-				accountability: this.accountability,
-				schema: this.schema,
-			});
-
 			const payload = data as Partial<Collection>;
 
 			if (!payload.meta) {
 				return collectionKey;
 			}
 
-			const exists = !!(await this.knex
-				.select('collection')
-				.from('directus_collections')
-				.where({ collection: collectionKey })
-				.first());
-
-			if (exists) {
-				await collectionsItemsService.updateOne(collectionKey, payload.meta, {
-					...opts,
-					bypassEmitAction: (params) =>
-						opts?.bypassEmitAction ? opts.bypassEmitAction(params) : nestedActionEvents.push(params),
+			await transaction(this.knex, async (trx) => {
+				const collectionsItemsService = new ItemsService('directus_collections', {
+					knex: trx,
+					accountability: this.accountability,
+					schema: this.schema,
 				});
-			} else {
-				await collectionsItemsService.createOne(
-					{ ...payload.meta, collection: collectionKey },
-					{
+
+				const exists = !!(await trx
+					.select('collection')
+					.from('directus_collections')
+					.where({ collection: collectionKey })
+					.first());
+
+				if (exists) {
+					await collectionsItemsService.updateOne(collectionKey, payload.meta!, {
 						...opts,
 						bypassEmitAction: (params) =>
 							opts?.bypassEmitAction ? opts.bypassEmitAction(params) : nestedActionEvents.push(params),
-					},
-				);
-			}
+					});
+				} else {
+					await collectionsItemsService.createOne(
+						{ ...payload.meta, collection: collectionKey },
+						{
+							...opts,
+							bypassEmitAction: (params) =>
+								opts?.bypassEmitAction ? opts.bypassEmitAction(params) : nestedActionEvents.push(params),
+						},
+					);
+				}
+
+				/**
+				 * Versioning sync — handle versioning toggle.
+				 *
+				 * When versioning is enabled:
+				 *   1. Create the version table (mirrors real fields, skips aliases)
+				 *   2. Retroactively sync all existing relations that involve this collection
+				 *      (FK relations where collection=this, alias relations where one_collection=this)
+				 *
+				 * When versioning is disabled:
+				 *   Delete the version table and all its contents.
+				 *
+				 * All within the same transaction so the meta update and version sync are atomic.
+				 */
+				if ('versioning' in payload.meta!) {
+					const wasVersioned = this.schema.collections[collectionKey]?.versioning;
+					const isVersioned = payload.meta!.versioning;
+
+					if (isVersioned && !wasVersioned) {
+						const collectionsService = new CollectionsService({ knex: trx, schema: this.schema });
+
+						const existing = await collectionsService.readOne(collectionKey);
+
+						if (existing.schema) {
+							// Step 2: add existing real fields via FieldsService (triggers per-field version sync)
+							const fieldsService = new FieldsService({ knex: trx, schema: this.schema });
+							const existingFields = await fieldsService.readAll(collectionKey);
+
+							if (!existing.fields) existing.fields = [];
+
+							for (const field of existingFields) {
+								if (!field.schema) continue;
+
+								existing.fields.push(toVersionField(field));
+							}
+
+							// Step 1: create bare version table (system version fields only)
+							await collectionsService.createOne(toVersionCollection(existing));
+
+							// Step 3: sync existing relations to version table via createOne
+							const refreshedSchema = await getSchema({ bypassCache: true, database: trx });
+
+							const relationsService = new RelationsService({
+								knex: trx,
+								schema: refreshedSchema,
+							});
+
+							for (const relation of this.schema.relations) {
+								// Skip if no m2o on this collection or o2m pointing here
+								if (relation.collection !== collectionKey && relation.meta?.one_collection !== collectionKey) continue;
+
+								// Build version payload and create through normal flow
+								const fkRelation = {
+									...relation,
+									meta: relation.meta ? { ...relation.meta, one_field: null } : null,
+								};
+
+								// Base version relation — only if FK table has a version counterpart
+								// and version relation doesn't already exist (may have been created by earlier sync)
+								const versionRelationCollection = toVersionName(relation.collection);
+
+								const versionRelationExists = refreshedSchema.relations.some(
+									(r) => r.collection === versionRelationCollection && r.field === relation.field,
+								);
+
+								if (
+									!versionRelationExists &&
+									hasVersionTable(refreshedSchema, relation.collection) &&
+									this.schema.collections[relation.collection]?.fields[relation.field]
+								) {
+									const versionedCollections = Object.entries(this.schema.collections)
+										.filter(([, c]) => c.versioning)
+										.map(([name]) => name);
+
+									await relationsService.createOne(
+										toVersionRelation(fkRelation, { reference: false, versionedCollections }),
+										{ autoPurgeSystemCache: false, emitEvents: false },
+									);
+
+									// Reference relation if target is versioned
+									if (relation.related_collection && this.schema.collections[relation.related_collection]?.versioning) {
+										const sourceField = await fieldsService.readOne(relation.collection, relation.field);
+										const versionFieldsService = new FieldsService({ knex: trx, schema: refreshedSchema });
+
+										await versionFieldsService.createField(
+											toVersionName(relation.collection),
+											toVersionField(sourceField as any, { reference: true }),
+											undefined,
+											{ autoPurgeSystemCache: false, emitEvents: false },
+										);
+
+										const versionRelationService = new RelationsService({
+											knex: trx,
+											// refresh schema with newly added table/fields
+											schema: await getSchema({ bypassCache: true, database: trx }),
+										});
+
+										await versionRelationService.createOne(toVersionRelation(relation, { reference: true }), {
+											autoPurgeSystemCache: false,
+											emitEvents: false,
+										});
+									}
+								}
+
+								// Alias field on V(one_collection)
+								if (
+									relation.meta?.one_field &&
+									relation.meta?.one_collection &&
+									hasVersionTable(refreshedSchema, relation.meta.one_collection) &&
+									this.schema.collections[relation.meta.one_collection]?.fields[relation.meta.one_field]
+								) {
+									const versionFieldsService = new FieldsService({ knex: trx, schema: refreshedSchema });
+									const aliasField = await fieldsService.readOne(relation.meta.one_collection, relation.meta.one_field);
+
+									await versionFieldsService.createField(
+										toVersionName(relation.meta.one_collection),
+										toVersionField(aliasField as any, { reference: true }),
+										undefined,
+										{ autoPurgeSystemCache: false, emitEvents: false },
+									);
+								}
+							}
+						}
+					} else if (!isVersioned && wasVersioned) {
+						const versionCollection = toVersionName(collectionKey);
+
+						if (this.schema.collections[versionCollection]) {
+							const collectionsService = new CollectionsService({ knex: trx, schema: this.schema });
+							await collectionsService.deleteOne(versionCollection);
+						}
+					}
+				}
+			});
 
 			return collectionKey;
 		} finally {
@@ -491,7 +642,7 @@ export class CollectionsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -550,7 +701,7 @@ export class CollectionsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -600,7 +751,7 @@ export class CollectionsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -771,6 +922,26 @@ export class CollectionsService {
 							.where({ id: relation.meta!.id });
 					}
 				}
+
+				/**
+				 * Versioning sync — delete version table if it exists.
+				 * Inside the same transaction so both deletions are atomic.
+				 *
+				 * Note: deleteOne on the version table won't recurse because
+				 * the version table has versioning=false and no version counterpart.
+				 */
+				const versionTableName = toVersionName(collectionKey);
+
+				if (this.schema.collections[versionTableName]) {
+					const collectionsService = new CollectionsService({ knex: trx, schema: this.schema });
+
+					await collectionsService.deleteOne(versionTableName, {
+						autoPurgeCache: false,
+						autoPurgeSystemCache: false,
+						bypassEmitAction: (params) =>
+							opts?.bypassEmitAction ? opts.bypassEmitAction(params) : nestedActionEvents.push(params),
+					});
+				}
 			});
 
 			return collectionKey;
@@ -784,7 +955,7 @@ export class CollectionsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -832,7 +1003,7 @@ export class CollectionsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;

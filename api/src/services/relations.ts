@@ -7,6 +7,7 @@ import type {
 	AbstractServiceOptions,
 	Accountability,
 	ActionEventParams,
+	Field,
 	MutationOptions,
 	Query,
 	QueryOptions,
@@ -28,7 +29,12 @@ import { validateAccess } from '../permissions/modules/validate-access/validate-
 import { getDefaultIndexName } from '../utils/get-default-index-name.js';
 import { getSchema } from '../utils/get-schema.js';
 import { transaction } from '../utils/transaction.js';
+import { FieldsService } from './fields.js';
 import { ItemsService } from './items.js';
+import { hasVersionTable } from './versions/has-version-table.js';
+import { toVersionField } from './versions/to-version-field.js';
+import { toVersionName } from './versions/to-version-name.js';
+import { toVersionRelation } from './versions/to-version-relation.js';
 
 const env = useEnv();
 
@@ -285,6 +291,75 @@ export class RelationsService {
 					bypassEmitAction: (params) =>
 						opts?.bypassEmitAction ? opts.bypassEmitAction(params) : nestedActionEvents.push(params),
 				});
+
+				/**
+				 * Versioning sync — create version counterparts for this relation.
+				 * Uses trx to stay in the same transaction as the main relation creation.
+				 */
+				if (relation.collection && hasVersionTable(this.schema, relation.collection)) {
+					const targetVersioned =
+						!!relation.related_collection && !!this.schema.collections[relation.related_collection]?.versioning;
+
+					let versionRelationsService = new RelationsService({ knex: trx, schema: this.schema });
+					const versionFieldsService = new FieldsService({ knex: trx, schema: this.schema });
+
+					const noCache = { autoPurgeSystemCache: false, emitEvents: false };
+
+					// FK field on collection → create version relation
+					if (this.schema.collections[relation.collection]?.fields[relation.field!]) {
+						const fkRelation = {
+							...relation,
+							meta: relation.meta ? { ...relation.meta, one_field: null } : null,
+						};
+
+						const versionedCollections = Object.entries(this.schema.collections)
+							.filter(([, c]) => c.versioning)
+							.map(([name]) => name);
+
+						await versionRelationsService.createOne(
+							toVersionRelation(fkRelation, { reference: false, versionedCollections }),
+							noCache,
+						);
+
+						if (targetVersioned) {
+							const sourceField = (await versionFieldsService.readOne(relation.collection, relation.field!)) as Field;
+
+							await versionFieldsService.createField(
+								toVersionName(relation.collection),
+								toVersionField(sourceField, { reference: true }),
+								undefined,
+								noCache,
+							);
+
+							versionRelationsService = new RelationsService({
+								knex: trx,
+								schema: await getSchema({ bypassCache: true, database: trx }),
+							});
+
+							await versionRelationsService.createOne(toVersionRelation(relation, { reference: true }), noCache);
+						}
+					}
+
+					// Alias field on one_collection → create alias on V(one_collection)
+					const oneCollection = relation.meta?.one_collection ?? relation.related_collection;
+					const oneField = relation.meta?.one_field;
+
+					if (
+						oneField &&
+						oneCollection &&
+						this.schema.collections[oneCollection]?.versioning &&
+						this.schema.collections[oneCollection]?.fields[oneField]
+					) {
+						const sourceField = (await versionFieldsService.readOne(oneCollection, oneField)) as Field;
+
+						await versionFieldsService.createField(
+							toVersionName(oneCollection),
+							toVersionField(sourceField, { reference: true }),
+							undefined,
+							noCache,
+						);
+					}
+				}
 			});
 		} finally {
 			if (runPostColumnChange) {
@@ -296,7 +371,7 @@ export class RelationsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -412,6 +487,24 @@ export class RelationsService {
 						);
 					}
 				}
+
+				/**
+				 * Versioning sync — forward updates to version relations.
+				 */
+				if (hasVersionTable(this.schema, collection)) {
+					const versionCollection = toVersionName(collection);
+					const versionRelationsService = new RelationsService({ knex: trx, schema: this.schema });
+
+					if (this.schema.collections[versionCollection]?.fields[field]) {
+						await versionRelationsService.updateOne(versionCollection, field, relation);
+					}
+
+					const versionField = toVersionName(field);
+
+					if (this.schema.collections[versionCollection]?.fields[versionField]) {
+						await versionRelationsService.updateOne(versionCollection, versionField, relation);
+					}
+				}
 			});
 		} finally {
 			if (runPostColumnChange) {
@@ -423,7 +516,7 @@ export class RelationsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;
@@ -498,6 +591,38 @@ export class RelationsService {
 				} else {
 					nestedActionEvents.push(actionEvent);
 				}
+
+				/**
+				 * Versioning sync — remove version counterparts.
+				 */
+				if (hasVersionTable(this.schema, collection)) {
+					const versionCollection = toVersionName(collection);
+					const versionRelationsService = new RelationsService({ knex: trx, schema: this.schema });
+					const versionFieldsService = new FieldsService({ knex: trx, schema: this.schema });
+
+					if (this.schema.collections[versionCollection]?.fields[field]) {
+						await versionRelationsService.deleteOne(versionCollection, field);
+					}
+
+					const versionField = toVersionName(field);
+
+					if (this.schema.collections[versionCollection]?.fields[versionField]) {
+						await versionRelationsService.deleteOne(versionCollection, versionField);
+						await versionFieldsService.deleteField(versionCollection, versionField);
+					}
+
+					const oneCollection = existingRelation.meta?.one_collection;
+					const oneField = existingRelation.meta?.one_field;
+
+					if (oneField && oneCollection) {
+						const versionOneCollection = toVersionName(oneCollection);
+						const versionOneField = toVersionName(oneField);
+
+						if (this.schema.collections[versionOneCollection]?.fields[versionOneField]) {
+							await versionFieldsService.deleteField(versionOneCollection, versionOneField);
+						}
+					}
+				}
 			});
 		} finally {
 			if (runPostColumnChange) {
@@ -509,7 +634,7 @@ export class RelationsService {
 			}
 
 			if (opts?.emitEvents !== false && nestedActionEvents.length > 0) {
-				const updatedSchema = await getSchema();
+				const updatedSchema = await getSchema({ database: this.knex });
 
 				for (const nestedActionEvent of nestedActionEvents) {
 					nestedActionEvent.context.schema = updatedSchema;

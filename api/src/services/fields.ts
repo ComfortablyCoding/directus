@@ -49,6 +49,9 @@ import { getCollectionRelationList } from './fields/get-collection-relation-list
 import { ItemsService } from './items.js';
 import { PayloadService } from './payload.js';
 import { RelationsService } from './relations.js';
+import { hasVersionTable } from './versions/has-version-table.js';
+import { toVersionField } from './versions/to-version-field.js';
+import { toVersionName } from './versions/to-version-name.js';
 
 const systemFieldRows = getSystemFieldRowsWithAuthProviders();
 const env = useEnv();
@@ -468,6 +471,29 @@ export class FieldsService {
 				} else {
 					nestedActionEvents.push(actionEvent);
 				}
+
+				/**
+				 * Versioning sync — mirror real (non-alias) fields to the version table.
+				 *
+				 * Only real fields (schema !== null) are synced here. Alias fields (O2M, M2M, M2A
+				 * aliases) are created by RelationsService.syncVersionCreate when their relation
+				 * is created. This also covers junction tables — hasVersionTable checks for both
+				 * collection.versioning and the existence of a directus_versions_* counterpart.
+				 */
+				if (
+					hasVersionTable(this.schema, collection) &&
+					hookAdjustedField.type &&
+					ALIAS_TYPES.includes(hookAdjustedField.type) === false
+				) {
+					const versionFieldsService = new FieldsService({ knex: trx, schema: this.schema });
+
+					await versionFieldsService.createField(
+						toVersionName(collection),
+						toVersionField(hookAdjustedField) as any,
+						undefined,
+						{ autoPurgeSystemCache: false, emitEvents: false },
+					);
+				}
 			});
 
 			// concurrent index creation cannot be done inside the transaction
@@ -515,54 +541,54 @@ export class FieldsService {
 		}
 
 		try {
-			const hookAdjustedField =
-				opts?.emitEvents !== false
-					? await emitter.emitFilter(
-							`fields.update`,
-							field,
-							{
-								keys: [field.field],
-								collection: collection,
-							},
-							{
-								database: this.knex,
-								schema: this.schema,
-								accountability: this.accountability,
-							},
-						)
-					: field;
+			await transaction(this.knex, async (trx) => {
+				const hookAdjustedField =
+					opts?.emitEvents !== false
+						? await emitter.emitFilter(
+								`fields.update`,
+								field,
+								{
+									keys: [field.field],
+									collection: collection,
+								},
+								{
+									database: trx,
+									schema: this.schema,
+									accountability: this.accountability,
+								},
+							)
+						: field;
 
-			const record = field.meta
-				? await this.knex.select('id').from('directus_fields').where({ collection, field: field.field }).first()
-				: null;
+				const record = field.meta
+					? await trx.select('id').from('directus_fields').where({ collection, field: field.field }).first()
+					: null;
 
-			if (
-				hookAdjustedField.type &&
-				(hookAdjustedField.type === 'alias' ||
-					this.schema.collections[collection]!.fields[field.field]?.type === 'alias') &&
-				hookAdjustedField.type !== (this.schema.collections[collection]!.fields[field.field]?.type ?? 'alias')
-			) {
-				throw new InvalidPayloadError({ reason: 'Alias type cannot be changed' });
-			}
-
-			if (hookAdjustedField.schema) {
-				const existingColumn = await this.columnInfo(collection, hookAdjustedField.field);
-
-				if (existingColumn.is_primary_key) {
-					if (hookAdjustedField.schema?.is_nullable === true) {
-						throw new InvalidPayloadError({ reason: 'Primary key cannot be null' });
-					}
+				if (
+					hookAdjustedField.type &&
+					(hookAdjustedField.type === 'alias' ||
+						this.schema.collections[collection]!.fields[field.field]?.type === 'alias') &&
+					hookAdjustedField.type !== (this.schema.collections[collection]!.fields[field.field]?.type ?? 'alias')
+				) {
+					throw new InvalidPayloadError({ reason: 'Alias type cannot be changed' });
 				}
 
-				// Sanitize column only when applying snapshot diff as opts is only passed from /utils/apply-diff.ts
-				const columnToCompare =
-					opts?.bypassLimits && opts.autoPurgeSystemCache === false ? sanitizeColumn(existingColumn) : existingColumn;
+				if (hookAdjustedField.schema) {
+					const existingColumn = await this.columnInfo(collection, hookAdjustedField.field);
 
-				if (!isEqual(columnToCompare, hookAdjustedField.schema)) {
-					try {
-						const attemptConcurrentIndex = Boolean(opts?.attemptConcurrentIndex);
+					if (existingColumn.is_primary_key) {
+						if (hookAdjustedField.schema?.is_nullable === true) {
+							throw new InvalidPayloadError({ reason: 'Primary key cannot be null' });
+						}
+					}
 
-						await transaction(this.knex, async (trx) => {
+					// Sanitize column only when applying snapshot diff as opts is only passed from /utils/apply-diff.ts
+					const columnToCompare =
+						opts?.bypassLimits && opts.autoPurgeSystemCache === false ? sanitizeColumn(existingColumn) : existingColumn;
+
+					if (!isEqual(columnToCompare, hookAdjustedField.schema)) {
+						try {
+							const attemptConcurrentIndex = Boolean(opts?.attemptConcurrentIndex);
+
 							await trx.schema.alterTable(collection, (table) => {
 								if (!hookAdjustedField.schema) return;
 
@@ -571,64 +597,99 @@ export class FieldsService {
 									attemptConcurrentIndex,
 								});
 							});
-						});
 
-						// concurrent index creation cannot be done inside the transaction
-						if (attemptConcurrentIndex) {
-							await this.addColumnIndex(collection, field, {
-								existing: existingColumn,
-								attemptConcurrentIndex,
-							});
+							// concurrent index creation cannot be done inside the transaction
+							if (attemptConcurrentIndex) {
+								await this.addColumnIndex(collection, field, {
+									existing: existingColumn,
+									attemptConcurrentIndex,
+								});
+							}
+						} catch (err: any) {
+							throw await translateDatabaseError(err, field);
 						}
-					} catch (err: any) {
-						throw await translateDatabaseError(err, field);
 					}
 				}
-			}
 
-			// Only create/update a database record if this is not a system field
-			if (hookAdjustedField.meta && !isSystemField(collection, hookAdjustedField.field)) {
-				if (record) {
-					await this.itemsService.updateOne(
-						record.id,
-						{
-							...hookAdjustedField.meta,
-							collection: collection,
-							field: hookAdjustedField.field,
-						},
-						{ emitEvents: false },
-					);
-				} else {
-					await this.itemsService.createOne(
-						{
-							...hookAdjustedField.meta,
-							collection: collection,
-							field: hookAdjustedField.field,
-						},
-						{ emitEvents: false },
-					);
+				// Only create/update a database record if this is not a system field
+				if (hookAdjustedField.meta && !isSystemField(collection, hookAdjustedField.field)) {
+					const trxItems = new ItemsService('directus_fields', {
+						knex: trx,
+						accountability: this.accountability,
+						schema: this.schema,
+					});
+
+					if (record) {
+						await trxItems.updateOne(
+							record.id,
+							{
+								...hookAdjustedField.meta,
+								collection: collection,
+								field: hookAdjustedField.field,
+							},
+							{ emitEvents: false },
+						);
+					} else {
+						await trxItems.createOne(
+							{
+								...hookAdjustedField.meta,
+								collection: collection,
+								field: hookAdjustedField.field,
+							},
+							{ emitEvents: false },
+						);
+					}
 				}
-			}
 
-			const actionEvent = {
-				event: 'fields.update',
-				meta: {
-					payload: hookAdjustedField,
-					keys: [hookAdjustedField.field],
-					collection: collection,
-				},
-				context: {
-					database: getDatabase(),
-					schema: this.schema,
-					accountability: this.accountability,
-				},
-			};
+				const actionEvent = {
+					event: 'fields.update',
+					meta: {
+						payload: hookAdjustedField,
+						keys: [hookAdjustedField.field],
+						collection: collection,
+					},
+					context: {
+						database: getDatabase(),
+						schema: this.schema,
+						accountability: this.accountability,
+					},
+				};
 
-			if (opts?.bypassEmitAction) {
-				opts.bypassEmitAction(actionEvent);
-			} else {
-				nestedActionEvents.push(actionEvent);
-			}
+				if (opts?.bypassEmitAction) {
+					opts.bypassEmitAction(actionEvent);
+				} else {
+					nestedActionEvents.push(actionEvent);
+				}
+
+				/**
+				 * Versioning sync — update field on version table if it exists there.
+				 *
+				 * Updates the base field (e.g. author_id on dv_posts) and the reference
+				 * field (e.g. dv_author_id on dv_posts) if the target was versioned.
+				 * Reference fields are created by RelationsService when the target is versioned,
+				 * so they only exist when both sides of the M2O are versioned.
+				 */
+				if (hasVersionTable(this.schema, collection)) {
+					const versionCollection = toVersionName(collection);
+					const versionFieldName = toVersionName(field.field);
+					const versionFieldsService = new FieldsService({ knex: trx, schema: this.schema });
+					const versionOpts = { autoPurgeSystemCache: false, emitEvents: false };
+
+					// Update base field on version table
+					if (this.schema.collections[versionCollection]?.fields[field.field]) {
+						await versionFieldsService.updateField(versionCollection, toVersionField(field) as any, versionOpts);
+					}
+
+					// Update reference field (directus_versions_* prefixed) if it exists
+					if (this.schema.collections[versionCollection]?.fields[versionFieldName]) {
+						await versionFieldsService.updateField(
+							versionCollection,
+							toVersionField(field, { reference: true }) as any,
+							versionOpts,
+						);
+					}
+				}
+			});
 
 			return field.field;
 		} finally {
@@ -856,6 +917,33 @@ export class FieldsService {
 						await trx('directus_permissions')
 							.update('fields', newFields.length > 0 ? newFields : null)
 							.where('id', '=', permissionRow['id']);
+					}
+				}
+
+				/**
+				 * Versioning sync — delete field and reference field on version table.
+				 *
+				 * Deletes the base field (e.g. author_id on dv_posts) and the reference
+				 * field (e.g. dv_author_id on dv_posts) if it exists.
+				 *
+				 * Relation cleanup (FK constraints, aliases) is already handled by
+				 * RelationsService.deleteOne above, which triggers its own version sync
+				 * (syncVersionDelete) to remove version relations and alias fields.
+				 */
+				if (hasVersionTable(this.schema, collection)) {
+					const versionCollection = toVersionName(collection);
+					const versionFieldName = toVersionName(field);
+					const versionFieldsService = new FieldsService({ knex: trx, schema: this.schema });
+					const versionOpts = { autoPurgeSystemCache: false, emitEvents: false };
+
+					// Delete base field on version table
+					if (this.schema.collections[versionCollection]?.fields[field]) {
+						await versionFieldsService.deleteField(versionCollection, field, versionOpts);
+					}
+
+					// Delete reference field (directus_versions_* prefixed) if it exists
+					if (this.schema.collections[versionCollection]?.fields[versionFieldName]) {
+						await versionFieldsService.deleteField(versionCollection, versionFieldName, versionOpts);
 					}
 				}
 			});

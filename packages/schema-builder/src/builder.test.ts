@@ -85,6 +85,7 @@ test('Create primitive schema', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		  },
 		  "relations": [],
@@ -145,6 +146,7 @@ test('Create o2m relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		    "countries": {
 		      "accountability": "all",
@@ -187,6 +189,7 @@ test('Create o2m relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		  },
 		  "relations": [
@@ -207,13 +210,14 @@ test('Create o2m relation', () => {
 		      },
 		      "related_collection": "countries",
 		      "schema": {
-		        "column": "cities",
-		        "constraint_name": "countries_cities_foreign",
+		        "column": "country_id",
+		        "constraint_name": "cities_country_id_foreign",
+		        "foreign_key_column": "id",
 		        "foreign_key_schema": "public",
-		        "foreign_key_table": "cities",
+		        "foreign_key_table": "countries",
 		        "on_delete": "SET NULL",
 		        "on_update": "NO ACTION",
-		        "table": "countries",
+		        "table": "cities",
 		      },
 		    },
 		  ],
@@ -273,6 +277,7 @@ test('Create m2o relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		    "countries": {
 		      "accountability": "all",
@@ -298,6 +303,7 @@ test('Create m2o relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		  },
 		  "relations": [
@@ -320,6 +326,7 @@ test('Create m2o relation', () => {
 		      "schema": {
 		        "column": "country",
 		        "constraint_name": "cities_country_foreign",
+		        "foreign_key_column": "id",
 		        "foreign_key_schema": "public",
 		        "foreign_key_table": "countries",
 		        "on_delete": "SET NULL",
@@ -384,6 +391,7 @@ test('Create m2m relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		    "articles_tags_junction": {
 		      "accountability": "all",
@@ -439,6 +447,7 @@ test('Create m2m relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		    "tags": {
 		      "accountability": "all",
@@ -464,6 +473,7 @@ test('Create m2m relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		  },
 		  "relations": [
@@ -484,13 +494,14 @@ test('Create m2m relation', () => {
 		      },
 		      "related_collection": "articles",
 		      "schema": {
-		        "column": "tags",
-		        "constraint_name": "articles_tags_foreign",
+		        "column": "articles_id",
+		        "constraint_name": "articles_tags_junction_articles_id_foreign",
+		        "foreign_key_column": "id",
 		        "foreign_key_schema": "public",
-		        "foreign_key_table": "articles_tags_junction",
+		        "foreign_key_table": "articles",
 		        "on_delete": "SET NULL",
 		        "on_update": "NO ACTION",
-		        "table": "articles",
+		        "table": "articles_tags_junction",
 		      },
 		    },
 		    {
@@ -512,6 +523,7 @@ test('Create m2m relation', () => {
 		      "schema": {
 		        "column": "tags_id",
 		        "constraint_name": "articles_tags_junction_tags_id_foreign",
+		        "foreign_key_column": "id",
 		        "foreign_key_schema": "public",
 		        "foreign_key_table": "tags",
 		        "on_delete": "SET NULL",
@@ -576,6 +588,7 @@ test('Create m2a relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		    "blog_builder": {
 		      "accountability": "all",
@@ -646,6 +659,7 @@ test('Create m2a relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		    "image": {
 		      "accountability": "all",
@@ -671,6 +685,7 @@ test('Create m2a relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		    "text": {
 		      "accountability": "all",
@@ -696,6 +711,7 @@ test('Create m2a relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		  },
 		  "relations": [
@@ -716,13 +732,14 @@ test('Create m2a relation', () => {
 		      },
 		      "related_collection": "blog",
 		      "schema": {
-		        "column": "blocks",
-		        "constraint_name": "blog_blocks_foreign",
+		        "column": "blog_id",
+		        "constraint_name": "blog_builder_blog_id_foreign",
+		        "foreign_key_column": "id",
 		        "foreign_key_schema": "public",
-		        "foreign_key_table": "blog_builder",
+		        "foreign_key_table": "blog",
 		        "on_delete": "SET NULL",
 		        "on_update": "NO ACTION",
-		        "table": "blog",
+		        "table": "blog_builder",
 		      },
 		    },
 		    {
@@ -816,6 +833,7 @@ test('Create a2o relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		    "image": {
 		      "accountability": "all",
@@ -841,6 +859,7 @@ test('Create a2o relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		    "text": {
 		      "accountability": "all",
@@ -866,6 +885,7 @@ test('Create a2o relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		  },
 		  "relations": [
@@ -947,6 +967,7 @@ test('Create translations relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		    "blog_translations": {
 		      "accountability": "all",
@@ -1002,6 +1023,7 @@ test('Create translations relation', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		    "languages": {
 		      "accountability": "all",
@@ -1057,6 +1079,7 @@ test('Create translations relation', () => {
 		      "primary": "code",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		  },
 		  "relations": [
@@ -1077,13 +1100,14 @@ test('Create translations relation', () => {
 		      },
 		      "related_collection": "blog",
 		      "schema": {
-		        "column": "translations",
-		        "constraint_name": "blog_translations_foreign",
+		        "column": "blog_id",
+		        "constraint_name": "blog_translations_blog_id_foreign",
+		        "foreign_key_column": "id",
 		        "foreign_key_schema": "public",
-		        "foreign_key_table": "blog_translations",
+		        "foreign_key_table": "blog",
 		        "on_delete": "SET NULL",
 		        "on_update": "NO ACTION",
-		        "table": "blog",
+		        "table": "blog_translations",
 		      },
 		    },
 		    {
@@ -1105,6 +1129,7 @@ test('Create translations relation', () => {
 		      "schema": {
 		        "column": "languages_code",
 		        "constraint_name": "blog_translations_languages_code_foreign",
+		        "foreign_key_column": "code",
 		        "foreign_key_schema": "public",
 		        "foreign_key_table": "languages",
 		        "on_delete": "SET NULL",
@@ -1168,6 +1193,7 @@ test('overwrite field', () => {
 		      "primary": "id",
 		      "singleton": false,
 		      "sortField": null,
+		      "versioning": false,
 		    },
 		  },
 		  "relations": [],

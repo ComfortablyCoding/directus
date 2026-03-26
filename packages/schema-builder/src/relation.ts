@@ -46,10 +46,10 @@ export class RelationBuilder {
 				junction_field: null,
 			},
 			schema: {
-				constraint_name: `${this._data.collection}_${this._data.field}_foreign`,
-				table: this._data.collection,
-				column: this._data.field,
-				foreign_key_table: related_collection,
+				constraint_name: `${related_collection}_${related_field}_foreign`,
+				table: related_collection,
+				column: related_field,
+				foreign_key_table: this._data.collection,
 			},
 			_kind: 'finished',
 			_type: 'o2m',
@@ -181,6 +181,12 @@ export class RelationBuilder {
 		}
 
 		const { _kind, _type, ...relation } = this._data;
+
+		// Populate foreign_key_column from the related collection's primary key
+		if (relation.schema && relation.related_collection && schema.collections[relation.related_collection]) {
+			relation.schema.foreign_key_column = schema.collections[relation.related_collection].primary;
+		}
+
 		return relation;
 	}
 }
